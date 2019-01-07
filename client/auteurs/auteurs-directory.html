@@ -1,0 +1,34 @@
+<template name="auteurs-directory">
+<div>
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/new-auteur">new-author</a> ]
+    [ <a href="#" class="js-save-selection">save-selection</a> ]
+    {{#if session 'selected-auteurs'}}
+    &lt;au&gt;
+    {{/if}}
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    <input type="text" id="find-auteurs-input" style="height:20px; width:100%;">
+  </div>
+
+  {{#each au in auteurs}}
+  <div style="display:table-row;display:{{au.display_type}};">
+    <div style="display:table-cell;">
+      <input type="checkbox" xname="select-auteur" value="{{au.name}}" class="js-select-auteur">
+      <a href="/auteur/{{au.item_id}}-{{au.title}}">{{{au.title}}}</a>
+    </div>
+    <div style="display:table-cell;display:none;">
+      {{au.latest_revision}}
+    </div>
+    <div style="display:table-cell;padding-left:10px;display:none;">
+      {{au.latest_auteur}}
+    </div>
+  </div>
+  {{/each}}
+</div>
+</template>

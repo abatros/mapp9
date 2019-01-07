@@ -1,0 +1,37 @@
+<head>
+  <style>
+  #soc-directory div.title {
+    display:table-row;
+  }
+  #soc-directory span {
+    font-size:10pt;
+  }
+  </style>
+</head>
+
+<template name="soc-directory">
+<div id="soc-directory">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/new-soc">new Societe</a> ]
+    [ <a href="/new-soc">new Editeur</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    <input type="text" id="find-authors-input" style="height:20px; width:100%;">
+  </div>
+  <div display:table>
+  {{#each p in soc}}
+    <div class="title">
+      <a href="/soc/{{p.item_id}}-{{p.title}}" title="publisherName:({{p.name}})">
+        {{p.title}}
+      </a>
+      &emsp;&mdash;&emsp;<span></span>
+    </div>
+  {{/each}}
+  </div>
+</div>
+</template>

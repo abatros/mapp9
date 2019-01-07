@@ -1,0 +1,27 @@
+<template name="auteur-infos">
+<div>
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/auteurs-directory">back</a> ]
+    [ <a href="/edit-auteur/{{auteur.item_id}}">edit</a> ]
+    [ <a href="/delete-auteur/{{auteur.item_id}}">delete</a> ]
+    &mdash;
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
+    <input type="text" id="find-auteurs-input" style="height:20px; width:100%;">
+  </div>
+
+  <h3>Auteur : <span style="color:blue;">{{auteur.data.title}}</span></h3>
+
+  <h4>raw data</h4>
+  <pre>
+  {{auteur.yml}}
+  </pre>
+
+
+
+</div>
+</template>

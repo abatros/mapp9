@@ -1,0 +1,113 @@
+<head>
+  <style>
+    #edit-titre .js-data {
+      font-family: monospace;
+    }
+    #edit-titre input {
+      height:20px;
+      margin:5px;
+    }
+    #edit-titre label {
+      font-size:10pt;
+      font-weight:bold;
+    }
+  </style>
+</head>
+
+
+<template name="edit-titre">
+<div id="edit-titre">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="{{pathFor '/td'}}">back</a> ]
+    &mdash;
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    [ <a href="/produits-directory">produits</a> ]
+    [ <a href="/produits-directory">xref</a> ]
+    &mdash;
+    [ <a href="#" class="js-save-article">save</a> ]
+    [ <a href="#" class="js-revisions">revision history</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
+    <input type="text" id="find-authors-input" style="height:20px; width:100%;">
+  </div>
+
+  <h3>Titre : <span style="color:blue;">{{article.titre}}</span></h3>
+
+  <div style="margin-bottom:20px;">
+    unique-ID: {{article.name}} &emsp;#{{id}}
+  </div>
+
+  <div class="row">
+    <label for="section">section</label>
+    <input type="text" name="section" class='js-data'
+      value="{{article.data.section}}">
+  </div>
+
+  <div class="row">
+    <label for="h1">k1</label>
+    <input type="text" name="h1" id="h1" class='js-data'
+      value="{{article.data.h1}}">
+  </div>
+
+  <div class="row">
+    <label for="h2">k2</label>
+    <input type="text" name="h2" id="h1dddd" class='js-data'
+      cols="80" rows="10" value="{{article.data.h2}}">
+  </div>
+
+  <div>
+    <label for="H">H</label><br/>
+    <textarea name="isoc"
+      cols="80" rows="5">{{article.data.isoc}}</textarea>
+  </div>
+
+  <div>
+    <label for="french-txt">French</label> [ <a href="#">show/hide</a>]<br/>
+    <textarea name="french-txt" id="french-txt"
+      cols="80" rows="10">{{article.data.fr}}</textarea>
+  </div>
+
+  <div>
+    <label for="english-txt">English</label> [ <a href="#">show/hide</a>]<br/>
+    <textarea name="english-txt" id="english-txt" cols="80" rows="10" class="" style="display:none;">
+      {{article.data.en}}
+    </textarea>
+  </div>
+
+  <div>
+    <label for="chinese-txt">Chinese</label> [ <a href="#">show/hide</a>]<br/>
+    <textarea name="chinese-txt" id="chinese-txt" cols="80" rows="10" style="display:none;">
+      {{article.data.zh}}
+    </textarea>
+  </div>
+
+
+  <div>
+    <h4>liens PDF</h4>
+    {{#each pdf in article.data.links}}
+      {{article.data.yp}} -- <a href="/file/{{pdf.fn}}">{{pdf.label}}</a>
+      &emsp;({{pdf.np}} pages)
+      <br/>
+    {{/each}}
+  </div>
+
+  <div>
+    <h4>Entrees Index</h4>
+    {{#each ii in article.data.auteurs}}
+      <a href="/auteur/{{ii}}">{{ii}}</a>
+      <br/>
+    {{/each}}
+  </div>
+
+  <h4>raw data</h4>
+  <pre>
+{{article.yml}}
+  </pre>
+
+
+
+</div>
+</template>

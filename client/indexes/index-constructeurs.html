@@ -1,0 +1,70 @@
+<head>
+  <style>
+    .red {color:red;}
+    .green {color:green;}
+    #index-constructeurs span.yp {
+      font-size:9pt;
+      font-weight:bold;
+    }
+  </style>
+</head>
+
+<template name="index-constructeurs">
+<div id="index-constructeurs">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/new-auteur">new-author</a> ]
+    [ <a href="#" class="js-save-selection">save-selection</a> ]
+    {{#if session 'selected-auteurs'}}
+    &lt;au&gt;
+    {{/if}}
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    <input type="text" id="find-auteurs-input" style="height:20px; width:100%;">
+  </div>
+  {{#each au in auteurs}}
+  <div>
+    <div style="margin:5px 0 0 0; border-bottom:3px solid rgb(230,230,230);padding:0 0 10px 0;">
+      <a href="/auteur/{{au.auteurName}}">{{{au.auteurName}}}</a>
+      <div style="margin:5px 0 0 20px;">
+        {{#each title in au.titres}}
+          <div style="margin:4px 0 0 0px;">
+            {{title.title}} <span class="yp">({{title.yp}})</span>
+
+            <span style="font-size:9pt;">[{{title.xid}}]
+              {{#if title.restricted}}
+              <span class="red">Restricted</span>{{/if}}
+              {{#if title.transcription}}
+              <span class="green">Transcription</span>{{/if}}
+            </span>
+
+
+
+            {{#if title.restricted}}
+            <div style="margin:0 0 0 0px;" class="red">
+              &rarr; Document  sous droits d'auteur, non communicable.
+            </div>
+            {{else}}
+            <div style="margin:0 0 0 0px;">
+              {{#each pdf in title.links}}
+              <div>
+                &rarr; <a href="{{pdf.fn}}">{{pdf.fn2}}</a>
+              </div>
+              {{/each}}
+            </div>
+            {{/if}}
+          </div>
+        {{/each}}
+      </div>
+    </div>
+    <div style="display:table-cell;padding-left:10px;display:none;">
+      {{au.latest_auteur}}
+    </div>
+  </div>
+  {{/each}}
+</div>
+</template>

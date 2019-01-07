@@ -1,0 +1,40 @@
+<head>
+  <style>
+    #titres-directory .yp {
+      font-size:9pt; font-weight:bold;
+    }
+  </style>
+</head>
+<template name="titres-directory">
+<div id="titres-directory">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/new-titre">new-titre</a> ]
+    &mdash;
+    [ <a href="#">show-auteurs</a> ]
+    [ <a href="#">show-pdf</a> ]
+    [ <a href="#">show-produits</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    <input type="text" id="find-authors-input" style="height:20px; width:100%;">
+  </div>
+  {{#each titre in titres}}
+  <div style="display:table-row;display:{{au.display_type}};">
+    <div style="display:table-cell;">
+        &mdash;&ensp; <a href="/titre/{{titre.item_id}}-{{titre.title}}">{{{titre.title}}}</a>
+        {{#each p in titre.h2}} - {{p}} {{/each}} - <span class="yp">{{titre.yp}}</span>
+    </div>
+    <div style="display:table-cell;display:none;">
+      {{titre.latest_revision}}
+    </div>
+    <div style="display:table-cell;padding-left:10px;display:none;">
+      {{titre.latest_titre}}
+    </div>
+  </div>
+  {{/each}}
+</div>
+</template>

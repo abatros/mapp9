@@ -1,0 +1,87 @@
+<head>
+  <style>
+    .row {
+      display:table-row;
+      --min-height:30px;
+    }
+    .row div {
+      display:table-cell;
+      padding-bottom:10px;
+    }
+    .row input {
+      height:20px; width:300px;
+    }
+    form label {
+      display:table-cell;
+      padding-right:20px;
+      text-align:right;
+      --background-color: lightgreen;
+      font-family:cursive;
+      font-weight:bold;
+    }
+    #new-titre .blue {color:blue;}
+    #new-titre .nodisplay {
+      display:none;
+    }
+  </style>
+</head>
+
+<template name="new-titre">
+  <div id="new-titre">
+
+    <div style="border:0px solid black; margin:5px; padding:2px;">
+      [ <a href="/titres-directory">titres</a> ]
+      [ <a href="/auteurs-directory">auteurs</a> ]
+      [ <a href="/soc-directory">societes</a> ]
+      &mdash;
+    </div>
+
+    <h3>New Titre : <span class="blue">{{unique_name.get}}</span></h3>
+    <form class="js-form-new-auteur" action="" autocomplete="nope">
+      <div class="row js-firstname">
+        <label>name</label>
+        <div><input type="text" name="name" autocomplete="nope" style="width:800px;"></div>
+      </div>
+
+      {{#each au in auteurs}}
+      <div class="row">
+        <label>auteur</label>
+        <div>
+          <input type="text" class="js-auteur-name" name="auteur" autocomplete="nope" placeholder="first auteur"
+          value="{{au}}"
+          >
+        </div>
+      </div>
+      {{/each}}
+
+
+      <div class="row">
+        <label>auteur</label>
+        <div>
+          <input type="text" class="js-auteur-name" name="last-auteur-entry" placeholder="<lastName> (<firstName>) [city] [year] [occupation]"
+          value=""
+          >
+          <span class="{{session 'last-auteur-add-display'}}">
+          [ <a href="#" class="js-add-auteur-line"> + auteur</a> ]
+          </span>
+        </div>
+      </div>
+
+
+      <div class="row">
+        <label>index (sort)</label>
+        <div><input type="text" name="sort_key" autocomplete="nope" placeholder="pour le classement"></div>
+      </div>
+      <div class="row">
+        <label>testing</label>
+        <div><input type="text" placeholder="autocomplete"></div>
+      </div>
+      <div class="row">
+        <label></label>
+        <div>
+          <input type="submit" value="Save">
+        </div>
+      </div>
+    </form>
+  </div>
+</template>

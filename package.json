@@ -1,0 +1,28 @@
+{
+  "name": "mapp9",
+  "private": true,
+  "scripts": {
+    "start": "meteor run",
+    "test": "meteor test --once --driver-package meteortesting:mocha",
+    "test-app": "TEST_WATCH=1 meteor test --full-app --driver-package meteortesting:mocha",
+    "visualize": "meteor --production --extra-packages bundle-visualizer"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.2.0",
+    "dotenv": "^6.2.0",
+    "json2yaml": "^1.1.0",
+    "lodash": "^4.17.11",
+    "massive": "^5.7.2",
+    "meteor-node-stubs": "^0.4.1",
+    "meteor-reactive-object": "^1.1.1",
+    "object-hash": "^1.3.1",
+    "pg-monitor": "^1.1.0"
+  },
+  "meteor": {
+    "mainModule": {
+      "client": "client/main.js",
+      "server": "server/main.js"
+    },
+    "testModule": "tests/main.js"
+  }
+}

@@ -1,0 +1,33 @@
+<head>
+<style>
+  #edit-title {
+    margin:30px;
+    padding:30px;
+    background-color:rgba(0,200,0,0.2);
+  }
+  #edit-title input {
+    width:100%;
+    max-width:800px;
+  }
+</style>
+</head>
+
+
+<template name='edit_title'>
+  <div id="edit-title">
+    <label for="">original</label><br/>
+    <input type="text" name="new-title" value="{{parent.title}}" readonly tabIndex="-1"><br/>
+    <label for="">new title</label><br/>
+    <input type="text" name="new-title" value="{{parent.title}}" tabIndex="1" class="js-new-title"><br/>
+    <label for="">new key</label><br/>
+    <input type="text" name="new-name" value="{{uname}}" tabIndex="2"><br/>
+    <div>
+      <br/>
+      <span>
+        [ <a href="#" tabIndex="3" class="js-apply">Apply</a> ]
+        [ <a href="#" tabIndex="4" class="js-quit">quit</a> ]
+        [ <a href="#" tabIndex="5" class="js-validate">validate</a> ]
+      </span>
+    </div>
+  </div>
+</template>

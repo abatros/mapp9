@@ -1,0 +1,61 @@
+<head>
+  <style>
+    #edit-publisher .js-data {
+      font-family: monospace;
+    }
+    #edit-publisher input {
+      height:20px;
+      margin:5px;
+    }
+    #edit-publisher label {
+      font-size:10pt;
+      font-weight:bold;
+    }
+  </style>
+</head>
+
+
+<template name="edit-publisher">
+<div id="edit-publisher">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/produits-directory">produits</a> ]
+    [ <a href="/produits-directory">xref</a> ]
+    &mdash;
+    [ <a href="#" class="js-update-publisher">save</a> ]
+    [ <a href="#" class="js-revisions">revision history</a> ]
+    {{#if session ''}}
+    {{else}}
+    [ <a href="#" class="js-edit-title">edit-title</a> ]
+    {{/if}}
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
+    <input type="text" id="find-publisher-input" style="height:20px; width:100%;">
+  </div>
+
+  <h3>Titre : <span style="color:blue;">{{revision 'title'}}</span></h3>
+
+  {{#if edit_title_data}}
+  {{> edit_title parent=edit_title_data}}
+  {{/if}}
+
+  <div>
+    <label for="H">Index entries</label><br/>
+    <textarea name="acronyms"
+      cols="80" rows="5">{{revision_data 'index-name'}}</textarea>
+  </div>
+
+
+  <h4>raw data (origin)</h4>
+  <pre style="background-color:rgb(0,0,0,0.1);">
+{{original.yml}}
+  </pre>
+
+
+
+</div>
+</template>

@@ -1,0 +1,63 @@
+<head>
+  <style>
+    .row {
+      display:table-row;
+      --min-height:30px;
+    }
+    .row div {
+      display:table-cell;
+      padding-bottom:10px;
+    }
+    .row input {
+      height:20px; width:300px;
+    }
+    form label {
+      display:table-cell;
+      padding-right:20px;
+      text-align:right;
+      --background-color: lightgreen;
+      font-family:cursive;
+      font-weight:bold;
+    }
+    .auteur-new .blue {color:blue;}
+  </style>
+</head>
+
+<template name="auteur-new">
+  <div class="auteur-new">
+
+    <div style="border:0px solid black; margin:5px; padding:2px;">
+      [ <a href="/titres-directory">titres</a> ]
+      [ <a href="/auteurs-directory">auteurs</a> ]
+      [ <a href="/soc-directory">societes</a> ]
+      &mdash;
+    </div>
+
+
+    <h3>new-author : <span class="blue">{{unique_name.get}}</span></h3>
+    <form class="js-form-new-auteur" action="" autocomplete="nope">
+      <div class="row js-firstname">
+        <label>first name</label>
+        <div><input type="text" name="{{form.first_key}}" autocomplete="nope"></div>
+      </div>
+      <div class="row js-lastname">
+        <label style="display:table-cell;">last name</label>
+        <div><input type="text" name="{{form.last_key}}" autocomplete="nope"></div>
+      </div>
+      <div class="row">
+        <label>postfix</label>
+        <div><input type="text" name="{{form.postfix_key}}" autocomplete="nope"></div>
+      </div>
+      <div class="row">
+        <label>index (sort)</label>
+        <div><input type="text" name="{{form.index_key}}" autocomplete="nope" placeholder="pour le classement"></div>
+      </div>
+      <div class="row">
+        <label></label>
+        <div>
+          <input type="submit" value="Save">
+        </div>
+      </div>
+    </form>
+  </div>
+</template>

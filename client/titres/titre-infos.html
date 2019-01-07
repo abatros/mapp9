@@ -1,0 +1,76 @@
+<template name="titre-infos">
+<div>
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="{{pathFor '/td'}}">back</a> ]
+    &mdash;
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/soc-directory">societes</a> ]
+    &mdash;
+    [ <a href="/edit-titre/{{article.item_id}}">edit</a> ]
+    [ <a href="/delete-titre/{{article.item_id}}">delete</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
+    <input type="text" id="find-authors-input" style="height:20px; width:100%;">
+  </div>
+
+  <h3><span style="color:blue;">{{article.title}}</span></h3>
+
+  {{#if article.data.isoc}}
+  <h5> AKA:
+  {{#each aka in article.data.isoc}}
+  &rarr; {{aka}}
+  {{/each}}
+  </h5>
+  {{/if}}
+
+
+  {{#if article.data.h2}}
+  <h5> Produits:</h5>
+  <h5>
+  {{#each produit in article.data.h2}}
+  <span style="background-color:rgb(245,245,245); border: 1px solid rgb(230,230,230); padding:3px 6px;">{{produit}}</span>
+  {{/each}}
+  </h5>
+  {{/if}}
+
+
+
+  <div style="font-family:times;margin:0pt;padding:10pt; border: 2px solid rgb(230,230,230); background-color:rgb(240,240,240)">
+    &ndash;&ensp; {{article.data.fr}}
+    {{#if article.data.fr}}{{else}} <span style="font-style:italic;" class="green">Le texte Francais est manquant.</span> {{/if}}
+    <br/><br/>
+    &ndash;&ensp; {{article.data.en}}
+    {{#if article.data.en}}{{else}} <span style="font-style:italic;" class="green">English text is missing</span> {{/if}}
+    <br/><br/>
+    &ndash;&ensp; {{article.data.zh}}
+    {{#if article.data.zh}}{{else}} <span style="font-style:italic;" class="green">chinese text is missing</span> {{/if}}
+  </div>
+
+  <div>
+    <h4>liens PDF</h4>
+    {{#each pdf in article.data.links}}
+      {{article.data.yp}} -- <a href="/file/{{pdf.fn}}">{{pdf.label}}</a>
+      &emsp;({{pdf.np}} pages)
+      <br/>
+    {{/each}}
+  </div>
+
+  <div>
+    <h4>Entrees Index</h4>
+    {{#each ii in article.data.auteurs}}
+      <a href="/auteur/{{ii}}">{{ii}}</a>
+      <br/>
+    {{/each}}
+  </div>
+
+  <h4>raw data</h4>
+  <pre>
+{{article.yml}}
+  </pre>
+
+
+
+</div>
+</template>
