@@ -1,101 +1,94 @@
-﻿-- delete from acs_objects where (object_type = 'cms-article');
+﻿drop function if exists mapp_index_auteurs;
+drop function if exists mapp.index_auteurs;
 
-drop function if exists index_pdf;
+drop type mapp.index_auteurs;
+create type mapp.index_auteurs as (
+    name text,
+    articles jsonb[]
+	);
 
-/*
-
-	This is only for section 3.
-	We are looking for authors.
-
-*/
-
-create or replace function mapp_index_auteurs() returns jsonb as
-$$
-const xi = {}
+create or replace function mapp.index_auteurs(cmd jsonb)
+returns setof mapp.index_auteurs
+as $$
 const etime = new Date().getTime();
 
 function notice(x) {plv8.elog(NOTICE,x)}
 
-const titres = plv8.execute(`
-select item_id, 
+const query =`
+select
    latest_revision,
+   title,
+   item_id,
+   data->>'yp' as yp,
+   data->'links' as links,
    data->>'xid' as xid,
    data->>'sec' as sec,
-   data->>'yp' as yp,
    (data->>'transcription')::boolean as transcription,
    (data->>'restricted')::boolean as restricted,
-   data->'titres' as titles,
    data->'auteurs' as auteurs,
-   data->'links' as links
-from cms_articles__latest
-where (data->>'sec' is null) -- sensitive - could change. should be 3
-or ((data->>'sec')::integer = 3)
-;
-`)
+   data->'titres' as titles
+from cms_articles__directory
+where (data->>'sec' = '3')
+and (data->>'auteurs' is not null)
+`;
 
-notice(`cms_articles__latest =>${titres.length}`);
-
-titres.forEach((titre,j) =>{
-  if (!titre.auteurs) {
-    notice(`j:${j} titre:${JSON.stringify(titre)}`);
-    throw 'plv8::index_pdf =>fatal title without author';
-  }
-//  notice(titre.sec);
-  titre.auteurs.forEach((aName)=>{
-    xi[aName] = xi[aName] || [];
-    xi[aName].push({
-	xid: titre.xid,
-	yp: titre.yp,
-	name: titre.name,
-	links: titre.links,
-	title: titre.titles[0],
-	transcription: titre.transcription,
-	restricted: titre.restricted
-	})
-  });
-
-});
-notice(`etime: ${new Date().getTime()-etime} msec`)
-//return Object.values(xi);
-return {
-  auteurs: xi,
-  etime: new Date().getTime()-etime
+if (!cmd.package_id && !cmd.all_packages) {
+  cmd.error = `[mapp.index_auteurs] Invalid cmd - Missing cmd.package_id`;
+  notice(cmd.error);
+  return cmd;
 }
+
+var titres;
+if (cmd.package_id) {
+  titres = plv8.execute(query + `and (package_id = $1);`, [cmd.package_id])
+} else {
+  titres = plv8.execute(query, []);
+}
+
+const auteurs = {}
+let mCount = 0;
+for (const j in titres) {
+  const titre = titres[j];
+  const {revision_id, item_id, xid, yp, name, title="*missing*", links, transcription, restricted} = titre;
+  const aux = titre.auteurs.map(au=>(au.trim())).filter(au=>(au.length>0)); // FIX.
+
+  if (!aux || (aux.length<1)) {
+    notice(`j:${j} titre:${JSON.stringify(titre)}`);
+    mCount++;
+    notice (`mapp.index-auteurs =>fatal title without auteur xid:${xid} ${mCount}/${j}`);
+    continue;
+  }
+
+  aux.forEach((au)=>{
+    if (au.length<1) throw `fatal-65`;
+    if (au.trim().length<1) throw `fatal-66`;
+    auteurs[au] = auteurs[au] || [];
+
+    auteurs[au].push({
+//      revision_id,
+	    item_id,
+//	    title,
+	    xid,
+	    yp,
+//	    name,
+	    links,
+	  title: titre.titles[0],
+	    transcription,
+	    restricted
+	  })
+  }); // each auteur.
+}; // each titre.
+
+
+const alist = Object.keys(auteurs).map(au => ({
+    name: au,
+    articles: auteurs[au]	// list of catalogs.
+}));
+
+notice(`etime: ${new Date().getTime() - etime} ms`)
+return alist;
+
 $$ language plv8;
 
-/*
-do $$
-const v = plv8.execute("select index_pdf()")[0].index_pdf;
-plv8.elog(NOTICE, JSON.stringify(v));
-//plv8.elog(NOTICE, JSON.stringify(v.index_pdf))
-$$ language plv8;
-*/
-
-
-
-select mapp_index_auteurs();
-
-/*
-
-select item_id, revision_id, data->>'restricted' as R, data->'titres' as title, data->'auteurs' as auteurs, data->'links' as pdf
-from cms_articles__latest
---where ((data->>'transcription')::boolean = true)
-;
-
-
-select data->>'xid', data->>'restricted', data->>'transcription' from cms_articles__latest;
-
-select data->>'xid', data->>'restricted', data->>'transcription' 
-from cr_revisions r where ((r.data->>'restricted')::boolean = true);
-
-select item_id, revision_id, data->>'yp'
-from cms_articles__latest
-where (data->>'yp' = '1900')
-
-select content_item__delete(268175);
-
-select * from cr_revisions where (item_id = 268175)
-
-*/
-
-
+select * from mapp.index_auteurs('{"all_packages":true}') order by name limit 100;
+select * from mapp.index_auteurs('{"package_id":236393}'::jsonb) order by name limit 100;

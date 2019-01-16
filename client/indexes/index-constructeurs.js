@@ -1,60 +1,113 @@
 const assert = require('assert')
-import {auteurs, app} from '../app-client.js';
+import {publishers, app} from '../app-client.js';
 //import {auteurs, auteurs_array} from '../app-client.js';
 const TP = Template['index-constructeurs'];
 
 
 
 TP.onCreated(function(){
-  console.log(`onCreated index-auteurs:${Object.keys(auteurs).length}`);
+  console.log(`onCreated index-constructeurs:${Object.keys(publishers).length}`);
   this.index = new ReactiveVar();
   const _index = this.index;
 
-  Meteor.call('cms-index-constructeurs',(err,data)=>{
+  Meteor.call('index-constructeurs',(err,data)=>{
     if (err) throw err;
     if (data.error) {
-      console.log(`cms-index-constructeurs:`,data);
+      console.log(`index-constructeurs:`,data);
       return;
     }
-    const y = Object.entries(data).map(([auteurName,titres])=>{
+    console.log(`index-constructeurs receiving ${data.length} rows`)
+    /*
+        Here we receive 1 record for each article-catalog.
+        Inverted index is done on the client.
+        First step, fn2 : file-name cleanup and "transcription".
+        then add the acronyms.
+    */
+
+    data.forEach(cc =>{ // Catalog Construteur
+      cc.aka = cc.aka.map(ti=>(ti.trim())).filter(ti=>(ti.length>0)); // FIX.
+      if (!cc.links || cc.links.length<1) {
+        cc.links.push({
+          fn2:"TRANSCRIPTION"
+        })
+      } else {
+        cc.links.forEach((pdf)=>{
+          pdf.fn2 = pdf.fn
+          .replace(/^[0-9\s]*\s*/,'') // remove 'ca' !!!!
+          .replace(/[\s\-]*[0-9]+$/,'');
+        })
+      }
+    }) // each cc.
+
+    const xi = XI(data);
+    const y = Object.keys(xi).map(ccName => ({
+        ccName,			// constructeur-name
+        legalName: xi[ccName].legalName,
+        aka: xi[ccName].aka,
+        articles: xi[ccName].cats		// list of catalogs.
+    }));
+    y.sort((a,b)=>{
+      //console.log(`--${a.auteurName}`)
+      return a.ccName.localeCompare(b.ccName)
+    });
+
+    _index.set(y)
+    console.log(y)
+  });
+
+  if (false) {
+  Meteor.call('index-constructeurs',(err,data)=>{
+    if (err) throw err;
+    if (data.error) {
+      console.log(`index-constructeurs:`,data);
+      return;
+    }
+    console.log(`index-constructeurs receiving ${data.length} rows`)
+    const y = data.map(({name:cName, articles})=>{
       //console.log(`--v[${k}]:`,v);
-      assert(titres[0].restricted !== undefined)
-      if (!titres || titres.length <1) {
-        titres.push({
+      assert(articles[0].restricted !== undefined)
+      if (!articles || articles.length <1) {
+        articles.push({
           fn:"TRANSCRIPTIONx"
         })
         throw 'stop-24'
       } else {
-        titres.forEach(titre=>{
+        articles.forEach(titre=>{
           titre.links.forEach((pdf)=>{
             pdf.fn2 = pdf.fn
             .replace(/^[0-9\s]*\s*/,'')
             .replace(/[\s\-]*[0-9]+$/,'');
           })
         })
+
+        articles.sort((a,b)=>{
+          return a.yp.localeCompare(b.yp);
+//          return iret || a.title.localeCompare(b.title)
+        })
       }
       return {
-        auteurName,
-        titres
+        cName, // constructeur-name
+        articles
       };
     });
     y.sort((a,b)=>{
       //console.log(`--${a.auteurName}`)
-      return a.auteurName.localeCompare(b.auteurName)
+      return a.cName.localeCompare(b.cName)
     });
 
 
     _index.set(y)
     console.log(y)
   }) // call
+}
 })
 
 TP.onRendered(function(){
-  console.log(`onRendered index-constructeurs:${Object.keys(auteurs).length}`);
+  console.log(`onRendered index-constructeurs:${Object.keys(publishers).length}`);
 })
 
 TP.helpers({
-  auteurs() { // is an array.
+  constructeurs() { // is an array.
     const tp = Template.instance();
     return tp.index.get();
   }
@@ -166,10 +219,66 @@ TP.events({
 
 })
 
+// ===========================================================================
+
+function XI(articles) {
+  const xi = {} // Inverted Index -- for constructor legalName (indexName) and all acronyms => list of catalogs.
+  let mCount = 0;
+
+  for (const j in articles) {
+    const article = articles[j];
+    const {item_id, xid, yp, name, title="*missing*", links, transcription, restricted} = article;
+
+    if (!article.aka || (article.aka.length<1)) {
+      notice(`j:${j} titre:${JSON.stringify(article)}`);
+      mCount++;
+      notice (`index-constructeurs =>fatal article without  xid:${xid} ${mCount}/${j}`);
+      continue;
+    }
+    //notice(JSON.stringify(titre.aka));
+
+//    const aka = article.aka.map(ti=>(ti.trim())).filter(ti=>(ti.length>0)); // FIX.
+    aka = new Set(article.aka);
+
+    aka.forEach((cname, ia)=>{
+      if (cname.length<1) throw `fatal-65`;
+      if (cname.trim().length<1) throw `fatal-66`;
+      xi[cname] = xi[cname] || {cats:[]};
+      const legalName = (cname == article.aka[0]) ? null : article.aka[0];
+//      const legalName = article.aka[0];
+//console.log(`legalName(${cname})=>${legalName}`)
+      xi[cname].legalName = legalName;
+      xi[cname].aka = article.aka;
+      aka.delete(cname);
+      xi[cname].aka = Array.from(aka);
+//      xi[cname].aka = Array.from(aka);
+      console.log(`aka(${cname})=>`,xi[cname].aka);
+
+      xi[cname].cats.push({
+  	    item_id,
+        title,
+        xid,
+        yp,
+        name,
+        links,
+        transcription,
+        restricted
+      })
+    }); // each aka
+  }; // each article.
+
+  /*
+  const colist = Object.keys(xi).map(name => ({
+      name,			// constructeur-name
+      articles: xi[name].cats		// list of catalogs.
+  }));
+  */
+  return xi; // we might need that hash-table, instead of an array.
+}
 
 // ============================================================================
 
-FlowRouter.route('/index2', { //name: 'auteurs_directory',
+FlowRouter.route('/index-c', { //name: 'auteurs_directory',
     action: function(params, queryParams){
         console.log('Router::action for: ', FlowRouter.getRouteName());
         console.log(' --- params:',params);

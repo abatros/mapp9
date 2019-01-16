@@ -1,4 +1,4 @@
-
+﻿
 drop view if exists cms_instances__view;
 drop view if exists cms_instances;
 
@@ -7,20 +7,25 @@ drop view if exists cms_instances;
     cms-instance is a package instance
     with package_key 'cms'
 
-    There are 1 main folder (under -100) plus 2 subfolders (publishers, authors)
+    There are 1 main folder (under -100) - the application-folder.
+    Publishers and Authors are directly at level 1 under application-folder.
+    Articles are under the publisher-name.
+    Publisher is the unique owner of an article.
+    Several authors, can collaborate to an article.
 
 */
 
 
 CREATE OR REPLACE VIEW cms_instances AS
-select p.package_id, f.folder_id, i.name, f.label
-    -- wrong , object_id, acs_objects.title, OR add a object_type...
+select 
+  p.package_id, 
+  f.folder_id, 
+  i.name, 
+  f.label
 from apm_packages p
 left join cr_folders as f on (f.package_id = p.package_id)
 left join cr_items as i on (i.item_id = f.folder_id)
--- wrong left join acs_objects on (acs_objects.package_id = apm_packages.package_id)
 where i.parent_id = -100
---and cr_items.name = o->>'name'
 and p.package_key = 'cms';
 
 
@@ -43,3 +48,4 @@ CREATE OR REPLACE VIEW cms_folders AS
 
 
 select * from cms_folders;
+select * from cms_instances;

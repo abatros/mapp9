@@ -30,9 +30,15 @@ import './titres/edit-titre.js';
 
 import './indexes/index-auteurs.html';
 import './indexes/index-auteurs.js';
+
 import './indexes/index-constructeurs.html';
 import './indexes/index-constructeurs.js';
 
+import './indexes/index-marques.html';
+import './indexes/index-marques.js';
+
+import './indexes/index-s3.html';
+import './indexes/index-s3.js';
 
 import './app-client.js'
 import './popup-edit-title.html'

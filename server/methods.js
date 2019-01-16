@@ -71,7 +71,7 @@ Meteor.methods({
       data->>'h1' as h1, -- legalName
       data->'h2' as h2,  -- array NOT text
       data->>'yp' as yp
-    from cms_articles__latest
+    from cms_articles__directory
     where package_id = $1
     `;
     return db.query(query2, [package_id])
@@ -88,7 +88,7 @@ Meteor.methods({
     const etime = new Date().getTime();
     const audit = [];
     assert(cmd.item_id)
-    return db.query("select * from cms_articles__latest where item_id = $(item_id);",cmd)
+    return db.query("select * from cms_articles__directory where item_id = $(item_id);",cmd)
     .then(data =>{
       assert(data.length == 1)
       return data[0];
@@ -239,49 +239,8 @@ Meteor.methods({
       return o;
     })
   },
-
-  // -------------------------------------------------------------------------
-
-  'cms-index-auteurs-titres-pdf': (cmd)=>{
-    return db.query(`
-      select mapp_index_auteurs();
-      `,{single:true}) // only 1 row-1col with the json.
-    .then(retv =>{
-      //console.log(retv[0].index_pdf)
-      const hh = retv[0].mapp_index_auteurs;
-      for (aName in hh) {
-        console.log(`${aName} titres:`,hh[aName])
-      }
-      return retv[0].mapp_index_auteurs
-    })
-    .catch(err=>{
-      return {
-        error:err.message
-      }
-    })
-  },
-
-  // -------------------------------------------------------------------------
-
-  'cms-index-constructeurs': (cmd)=>{
-    return db.query(`
-      select * from cms_index_publishers;
-      `,{single:false})
-    .then(retv =>{
-      //console.log(retv[0].index_pdf)
-      const hh = retv[0].cms_index_publishers;
-      for (cName in hh) {
-        console.log(`${cName} titres:`,hh[cName])
-      }
-      return retv[0].cms_index_publishers
-    })
-    .catch(err=>{
-      return {
-        error:err.message
-      }
-    })
-  }
 });
+
 
 // -------------------------------------------------------------------------
 
@@ -394,5 +353,130 @@ Meteor.methods({
   },
 
   // --------------------------------------------------------------------------
+
+  'index-marques': ()=>{
+    assert(package_id)
+    return db.query(`
+      select * from mapp.index_marques($1::jsonb);
+      `,[{package_id}],{single:false})
+    .then(retv =>{
+      // console.log('mapp.index_marques() =>retv.length',retv.length); throw {message:'stop-406.'};
+//      console.log(`-- etime:${retv.etime} msec.`)
+      return retv;
+    })
+    .catch(err=>{
+      console.log(`index-marques err:`,err)
+      return {
+        error:err.message
+      }
+    })
+
+  },
+
+
+  // -------------------------------------------------------------------------
+
+  'index-auteurs': (cmd)=>{
+    return db.query(`
+      select * from mapp.index_auteurs($1);
+      `,[{package_id}],{single:false})
+    .then(retv =>{
+      return retv;
+    })
+    .catch(err=>{
+      console.log(`index-auteurs err:`,err)
+      return {
+        error:err.message
+      }
+    })
+  },
+
+  // -------------------------------------------------------------------------
+
+  'index-constructeurs2': (cmd)=>{
+    const etime = new Date().getTime();
+    return db.query(`
+      select * from mapp.index_constructeurs($1);
+      `,[{package_id}],{single:false})
+    .then(retv =>{
+      console.log(`index-constructeurs =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
+      return retv
+    })
+    .catch(err=>{
+      console.log(`index-constructeurs err:`,err)
+      return {
+        error:err.message
+      }
+    })
+  },
+
+  'index-constructeurs': (cmd)=>{
+    const etime = new Date().getTime();
+    const query = `
+select
+   latest_revision,
+   title,
+   item_id,
+   data->'links' as links,
+   data->>'yp' as yp,
+   (data->>'transcription')::boolean as transcription,
+   (data->>'restricted')::boolean as restricted,
+   data->>'xid' as xid,
+   data->'isoc' as aka,
+   data->>'sec' as sec
+from cms_articles__directory
+where (data->>'sec' != '3')
+--and (data->>'titles' is not null)
+and (package_id = ${package_id})
+`;
+
+    return db.query(query,[],{single:false})
+    .then(retv =>{
+      console.log(`index-constructeurs =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
+      return retv
+    })
+    .catch(err=>{
+      console.log(`index-constructeurs err:`,err)
+      return {
+        error:err.message
+      }
+    })
+  },
+
+  // --------------------------------------------------------------------------
+
+  'index-s3': (cmd)=>{
+    const etime = new Date().getTime();
+    const query = `-- index-s3
+select
+--   latest_revision,
+--   title,
+--   item_id,
+   data->'titres' as titres,
+   data->'auteurs' as auteurs,
+   data->'links' as links,
+   data->>'yp' as yp,
+   (data->>'transcription')::boolean as transcription,
+   (data->>'restricted')::boolean as restricted,
+   data->>'xid' as xid
+from cms_articles__directory
+where (data->>'sec' = '3')
+--and (data->>'titles' is not null)
+and (package_id = ${package_id})
+`;
+
+    return db.query(query,[],{single:false})
+    .then(retv =>{
+      console.log(`index-s3 =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
+      return retv
+    })
+    .catch(err=>{
+      console.log(`index-s3 err:`,err)
+      return {
+        error:err.message
+      }
+    })
+  }
+
 
 });

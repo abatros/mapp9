@@ -363,7 +363,10 @@ exports.publisher__new = function (data) {
       jsonb_data: data,
       checksum
     }],
-    {single:true});
+    {single:true})
+    .then(retv=>{
+      return retv.cms_publisher__new;
+    })
 } // cms_publisher__new(o)
 
 // ============================================================================
@@ -429,6 +432,7 @@ exports.publisher__save = function (o) {
       });
   } else {
     // if (o.force_new_revision) ....
+
     if (checksum == new_checksum) {
       if (!o.force_new_revision ) {
         if (verbose)
@@ -440,9 +444,11 @@ exports.publisher__save = function (o) {
       }
     }
 
-    console.log(`checksum [${checksum}]=>[${new_checksum}]`)
+
+    //console.log(`[cms.publisher__save] checksum (force:${o.force_new_revision}) [${checksum}]=>[${new_checksum}]`);
 
 
+/*
     return db.query('select cms_publisher__new_revision($1)',
       [{
         parent_id: app_folder_id,
@@ -455,22 +461,45 @@ exports.publisher__save = function (o) {
         jsonb_data,
         checksum: new_checksum
       }],
-      {single:true})
+      {single:true})*/
+
+
+      const description = o.description || `publisher-${item_id} revision`;
+
+      return db.query('select cms_revision__new($1)',
+        [{
+          item_id,
+          title, // cr_revision.title
+          description,
+          jsonb_data,
+          checksum: new_checksum
+//          parent_id: app_folder_id,
+//          name,
+//          package_id,
+        }],
+        {single:true})
+/*
       .then(retv =>{
-        return {
-          revision_id: retv.cms_publisher__new_revision
-        }
+        const o2 = retv.cms_revision__new;
+        assert(!o2.error);
+        assert(o2.latest_revision)
+        assert(!o.latest_revision)
+        o.latest_revision = o2.latest_revision;
+        // console.log(o);
+        return o;
       })
       .catch(err =>{
+        console.log(`[publisher__save] ALERT : (${err.message}) err:`,err)
         o.error = [err.message,'cms_publisher__new_revision'];
         return o;
       });
+      */
   }
 }
 
 // ----------------------------------------------------------------------------
 
-exports.article__save = function (o) {
+exports.article__save = async function (o) {
 
   const {item_id, parent_id, xid, name, title, data, checksum} = o;
   assert(data)
@@ -506,8 +535,9 @@ exports.article__save = function (o) {
     // if (o.force_new_revision) ....
     if (checksum == new_checksum) {
       if (!o.force_new_revision ) {
-        if (verbose)
-        console.log(`cms.article__save:: No change in checksum - skipping article new_revision item_id:${item_id}`);
+        if (verbose) {
+          console.log(`cms.article__save:: No change in checksum - skipping article new_revision item_id:${item_id}`);
+        }
         return {
           retCode: 'ok',
           info: 'cms.article__save:: No change in checksum - skipping article new_revision'
@@ -515,9 +545,9 @@ exports.article__save = function (o) {
       }
     }
 
-    console.log(`checksum [${checksum}]=>[${new_checksum}]`)
+    console.log(`[cms.article__save] checksum [${checksum}]=>[${new_checksum}]`)
 
-
+/*
     return db.query('select cms_article__new_revision($1)',
       [{
         parent_id,
@@ -531,15 +561,36 @@ exports.article__save = function (o) {
         checksum: new_checksum
       }],
       {single:true})
+      */
+
+      const retv = await db.query('select cms_revision__new($1)',
+        [{
+          item_id,
+          title,            // cr_revision.title
+          description,      // cr_revision.description
+          jsonb_data: data,
+          checksum: new_checksum
+          /*
+          parent_id,
+          name,
+          package_id,
+          text: null, //JSON.stringify(o),
+          */
+        }],
+        {single:true});
+
+      console.log('retv.cms_revision__new');
+
+     return retv.cms_revision__new;
+/*
       .then(retv =>{
-        return {
-          revision_id: retv.cms_article__new_revision
-        }
+        const o2 = retv.cms_revision__new;
+        return o2;
       })
       .catch(err =>{
         o.error = [err.message,'cms_article__new_revision'];
         return o;
-      });
+      });*/
   }
 }
 
@@ -552,7 +603,7 @@ exports.article__save = function (o) {
 
 */
 
-exports.author__save = function (o) {
+exports.author__save = async function (o) {
 
   const {item_id, xid, name, title, data, checksum, revision_id} = o;
   let {parent_id} = o;

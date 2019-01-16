@@ -32,14 +32,53 @@ Object.keys(iso_cc).forEach(cc=>{
   iso_cc[iso_cc[cc]] = cc;
 })
 
-function isoc2 (isoc) {
+/*
+      isoc12 for constructeurs.
+      get first => legalName
+      others as acronyms (aka)
+*/
+
+function isoc12(isoc) {
+  assert(Array.isArray(isoc))
+  const v = isoc.splice(0,1);
+  return {
+    legalName:v[0],
+    aka: isoc
+  };
+/*
+  isoc.forEach((sname,j) =>{
+    const title = sname;
+    const name = utils.nor_au2(sname); // or name = sname ..... optional.
+    let legalName = isoc[0]; // the first-one.
+
+
+    hh[name] = hh[name] || {
+      acronyms: new Set(), // will be populated in phase (2)
+      xi: new Set(), // offset into json[]
+      legalName,
+      title,
+      sec
+    };
+    hh[name].xi.add(ix); // collisions possible entre sec1 et sec2.
+    // it's why we use ix instead of it.
+    // about legalName .... unckanged...
+*/
+    /*
+        here each hh[name/title] has also a link to legalName (the first)
+    */
+
+  //}); // ref to an article.
+
+}
+
+
+function isoc3 (isoc) {
   /*
       proteger les points dans les parenteses; split on "|".
   */
   const v = isoc.replace(/\([^\)]*\)/g,($)=>{
     return $.replace(/\./g,'~');
   }).split('|')
-
 
   /*
       split first part, if (dot) is found.
@@ -63,7 +102,7 @@ function isoc2 (isoc) {
       titres.push(v[i].trim())
     }
   }
-  return {titres, auteurs} // titres[0] main titre.
+  return {titres, auteurs} // titres are for entries in index articles.
 }
 
 
@@ -128,29 +167,42 @@ module.exports= (json)=>{
     }
 
     // H: isoc
-    if (+it.sec ==3) { // Article - without publisher.
-      /*
-      const {auteurs, titre, titres} = isoc3(it.isoc)
+    if (+it.sec ==3) {
+      // Article - without publisher.
+      // specific to mapp9 => fake publisher.
+      const {auteurs, titres} = isoc3(it.isoc)
       it.auteurs = auteurs;
-      it.titre = titre;
-      it.other_titres = titres;*/
-//        Object.assign(it,isoc3(it.isoc))
-
-      Object.assign(it,isoc2(it.isoc))
-      assert(it.titres)
-      assert(it.auteurs)
+      it.titres = titres;
+      assert(Array.isArray(it.auteurs));
+      assert(Array.isArray(it.titres));
+      it.isoc = undefined;
     } else { // Catalog from Constructeurs. (publisher)
       /*
           h1: Article Original name is found in h1.
-          title: Article title === Article name index-ready (indexName).
-          TITLE +++ idexName
+          it will also be `revision.title`
+          isoc => aka : are the positions for this constructeur in the Index.
+          option: h1 := aka[0] to fix wrong spellings.
       */
       const v = it.isoc.split('|').map(it=>it.trim());
-      it.isoc = [].concat(v);
-      assert(Array.isArray(it.isoc))
-      it.title = it.isoc[0]; // IMPORTANT
-      it.publisher = it.title;
-      it.publisherName = utils.nor_au2(it.publisher); // could be done later
+      it.aka = [].concat(v);
+      assert(Array.isArray(it.aka))
+      it.isoc = undefined;
+
+      if (true) {
+        /*
+            TO FIX wrong spelling in H1.
+            Note 1: isoc are entries in index.
+            Note 2: h1 is legalName
+        */
+        it.h1 = it.aka[0]; // constructeur legalName
+      }
+      /*
+      const v2 = it.isoc.splice(0,1);
+      Object.assign(it, {
+        legalName:v2[0],
+        aka: it.isoc       // acronyms.
+      });
+      */
     }
 
     // I: h2 - keywords, products
@@ -225,7 +277,7 @@ module.exports= (json)=>{
     // invalidate.
     it.flags = undefined
     it.npages = undefined;
-    if (+it.sec !=3) assert(Array.isArray(it.isoc))
-
+//    if (+it.sec !=3) assert(Array.isArray(it.isoc))
+    assert(it.isoc == undefined)
   } // loop
 }

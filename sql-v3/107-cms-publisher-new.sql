@@ -1,20 +1,24 @@
-﻿drop function if exists publisher__new ();
+﻿-- drop function if exists publisher__new ();
 
 do $$
 plv8.elog(NOTICE, 'Setting functions for publishers.');
 $$ language plv8;
 
-
-create or replace function cms_publisher__new (o jsonb) returns jsonb
+create or replace function cms_publisher__new_ (o jsonb) returns jsonb
 as $$
 declare o2 jsonb;
 declare new_revision_id integer;
 declare publisher_id integer;
 
 begin
---  if (o->>'verbose') {
-    raise NOTICE 'cms_publisher__new(%):',o;
---  }
+
+  if (o->>'package_id' is null) then
+    raise EXCEPTION 'cms_publisher__new_: Missing package_id' using hint = 'Please check package_id';
+    end if;
+
+  if (o->>'parent_id' is null) then
+    raise EXCEPTION 'cms_publisher__new_: Missing parent_id' using hint = 'parent_id must point to an app-folder.';
+    end if;
 
   o := o || jsonb_build_object('item_subtype','cms-publisher');
 
@@ -46,5 +50,16 @@ begin
   -- raise notice 'o2:%',o2;
 
   return o2;
+exception
+  WHEN unique_violation THEN
+--  raise NOTICE 'err:%', sqlstate 
+  raise NOTICE 'Error: cms_publisher__new_(%)', o 
+  using hint = 'This publisher already exists.';
+  o := o || jsonb_build_object('error','This publisher already exists.');
+  return o;
 end;$$
 language 'plpgsql';
+
+-- select cms_publisher__new_('{"name":"po4l2i3t2usan2e"}');
+-- select cms_publisher__new_('{"name":"po4l2i3t2usan2e", "package_id":236393}');
+select cms_publisher__new_('{"name":"po4l2i3t2usan2es", "package_id":236393, "parent_id":236394}');

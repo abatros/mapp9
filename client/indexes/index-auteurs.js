@@ -9,13 +9,15 @@ TP.onCreated(function(){
   console.log(`onCreated pdf-by-auteurs:${Object.keys(auteurs).length}`);
   this.index = new ReactiveVar();
   const _index = this.index;
-  Meteor.call('cms-index-auteurs-titres-pdf',(err,data)=>{
+  Meteor.call('index-auteurs',(err,data)=>{
     if (err) throw err;
     if (data.error) {
-      console.log(`cms-index-auteurs-titres-pdf:`,data);
+      console.log(`index-auteurs:`,data);
       return;
     }
-    const y = Object.entries(data).map(([auteurName,titres])=>{
+    //console.log(`index-auteurs:`, data.auteurs);throw 'fatal-29'
+
+    const y = data.map(({name:auteurName, articles:titres})=>{
       //console.log(`--v[${k}]:`,v);
 //      assert(titres[0].restricted !== undefined)
       if (!titres || titres.length <1) {
@@ -24,6 +26,10 @@ TP.onCreated(function(){
         })
         throw 'stop-24'
       } else {
+        if (!Array.isArray(titres)) {
+          console.log(titres); throw 'fatal-29'
+        }
+
         titres.forEach(titre=>{
           titre.links.forEach((pdf)=>{
             pdf.fn2 = pdf.fn
@@ -31,7 +37,10 @@ TP.onCreated(function(){
             .replace(/[\s\-]*[0-9]+$/,'');
           })
         })
-      }
+      };
+
+      titres.sort((a,b)=>(a.yp.localeCompare(b.yp)));
+
       return {
         auteurName,
         titres
@@ -168,7 +177,7 @@ TP.events({
 
 // ============================================================================
 
-FlowRouter.route('/index1', { //name: 'auteurs_directory',
+FlowRouter.route('/index-a', { //name: 'auteurs_directory',
     action: function(params, queryParams){
         console.log('Router::action for: ', FlowRouter.getRouteName());
         console.log(' --- params:',params);

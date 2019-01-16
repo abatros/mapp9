@@ -3,11 +3,11 @@
 create or replace function cms_publisher__new_revision (o jsonb) returns jsonb
 as $$
 declare o2 jsonb;
-declare new_revision_id integer;
+declare new_revision integer;
 
 begin
   select content_revision__new(o) into o2;
-  new_revision_id := o2->>'content_revision__new';
+  new_revision := o2->>'content_revision__new';
 
   raise notice 'cms_pubisher__new_revision o2:%',o2; -- NOTICE:  {"content_item__new":89212}
   raise notice 'cms_pubisher__new_revision new_revision_id:%', new_revision_id; -- NOTICE:  {"content_item__new":89212}
@@ -19,12 +19,14 @@ begin
   */
 
   update cr_revisions set checksum = o->>'checksum', data = o->'jsonb_data'
-  where revision_id = new_revision_id;
+  where revision_id = new_revision;
 
+  -- Not sure we need this table... (Jan 2019).
   insert into cms_publishers (publisher_id)
-  values (new_revision_id);
+  values (new_revision);
 
-  return new_revision_id;
+  o := o || jsonb_build_object('revision_id', new_revision);
+  return o;
 end;$$
 language 'plpgsql';
 
