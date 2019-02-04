@@ -1,0 +1,9 @@
+---
+  inputs:
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www-inhelium
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium
+    - /home/dkz/2018/nov-2018-blueink-museum
+    - /home/dkz/tmp/museum/pic
+  patterns:
+    - \.jpg$

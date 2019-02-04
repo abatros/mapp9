@@ -1,0 +1,8 @@
+---
+  inputs:
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www
+    - /home/dkz/2018/nov-2018-blueink-museum
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium
+    - /home/dkz/tmp/museum/pdf
+  patterns:
+    - \.pdf$
