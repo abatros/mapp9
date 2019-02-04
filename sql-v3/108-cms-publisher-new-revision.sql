@@ -10,7 +10,7 @@ begin
   new_revision := o2->>'content_revision__new';
 
   raise notice 'cms_pubisher__new_revision o2:%',o2; -- NOTICE:  {"content_item__new":89212}
-  raise notice 'cms_pubisher__new_revision new_revision_id:%', new_revision_id; -- NOTICE:  {"content_item__new":89212}
+  raise notice 'cms_pubisher__new_revision new_revision_id:%', new_revision; -- NOTICE:  {"content_item__new":89212}
 
   /*
       Need to update cr_revisions with:

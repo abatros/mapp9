@@ -10,7 +10,7 @@ export const auteurs = {};
 export const auteurs_array = new ReactiveArray(); // should we keep only the columns displayed.
 export const titles = {};
 export const titles_array = new ReactiveArray(); // should we keep only the columns displayed.
-export const publishers = {};
+export const constructeurs = {};
 export const publishers_array = new ReactiveArray(); // should we keep only the columns displayed.
 
 export function auteur_lookup(uname) {
@@ -25,6 +25,16 @@ export function soc_lookup(uname) {
   console.log(`app.soc_lookup(${uname})`)
 }
 
+
+export function _assert(b, o, err_message) {
+  if (!b) {
+    console.log(`######[${err_message}]_ASSERT=>`,o);
+    console.trace(`######[${err_message}]_ASSERT`);
+    throw {
+      message: err_message // {message} to be compatible with other exceptions.
+    }
+  }
+}
 
 
 Meteor.startup(() => {
@@ -296,20 +306,22 @@ export function publisher__new_revision(o) {
           In a perfect world, we should get updated object back from DB.
           Here, we use o to update publishers[]
       */
-      console.log('retv:',retv);
-      console.log('retv.new_revision_id:',retv.new_revision_id);
-      assert (retv.new_revision_id, `fatal-279 retv.new_revision_id:${retv.new_revision_id}`)
+//      console.log('retv:',retv);
+//      console.log('retv.new_revision_id:',retv.new_revision_id);
+      _assert (retv.revision_id, retv, `fatal-279 retv.new_revision_id:${retv.new_revision_id}`)
 
       console.log(`publisher sent o:`,o)
 
-      const p = publishers[o.item_id];
+      const p = constructeurs[o.item_id];
       if (!p) {
         throw `ALERT unable to get publishers[${o.item_id}]`;
       }
 
-      console.log(`original publishers[${o.item_id}]:`,publishers[o.item_id])
+      console.log(`original publishers[${o.item_id}]:`,constructeurs[o.item_id])
 
-      p = dkz.pick(o, 'item_id, name, title')
+      const {item_id, name, title} = o;
+//      p = dkz.pick(o, 'item_id, name, title')
+      Object.assign(p,{item_id, name, title});
       /*
             Need to recalculate localeTitle.
             and set revision_id
@@ -318,9 +330,14 @@ export function publisher__new_revision(o) {
 
       p.revision_id = retv.new_revision_id;
       p.localeTitle = dkz.RemoveAccents(p.title).toLowerCase();
+      /*
+          Since the title changed, we must re-order the list.
+      */
+
+      /** jagi DOES NOT HAVE SORT ............................
       publishers_array.sort((a,b)=>{
         return a.localeTitle.localeCompare(b.localTitle, 'fr', {sensitivity: 'base'});
-      })
+      })**/
 
 
       resolve(retv); // not really useful, except resolve.

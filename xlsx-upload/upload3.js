@@ -80,7 +80,7 @@ var yaml_env;
     yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
     //console.log('env:',yaml_env);
   } catch (err) {
-    console.log(err.message);
+    console.log(err.message);-
     console.log(`
       Fatal error opening env-file <${yaml_env_file}>
       Try again using option -y
@@ -103,7 +103,7 @@ const jpeg_folder = argv.jpeg_folder|| '/media/dkz/Seagate/18.11-Museum-rsync-in
   //var pdf_folder = argv.pdf_folder || './pdf-1946';
 const pdf_folder = argv.pdf_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www';
 
-var input_fn = argv._[0] || `./20190114-full.xlsx`;
+var input_fn = argv._[0] || `./20190128-full.xlsx`;
 if (!input_fn) {
     console.log('Syntax: node xlsx2json [options] <file-name.xlsx>');
     return;
@@ -175,11 +175,41 @@ require('./reformat.js')(json);
 jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
 //check1()
 
+;(()=>{
+  let mCount =0;
+  let checked =0;
+  for (const ix in json) { // array
+    const it = json[ix]; // with xid.
+    if (it.deleted || (+it.sec !=3)) continue;
+    checked ++;
+    if (!it.indexNames || it.indexNames.length <1) {
+      mCount++;
+      console.log(`-- Missing titres(S3) xid:${it.xid} col(H):${it.isoc}`)
+    }
+  }
+  assert(mCount ==0, 'fatal-187 MISSING TITRES.')
+})()
+
+
+
+
 console.log("=============================================")
 console.log("PHASE 1 COMPLETE (xlsx is now in json format)")
 console.log("=============================================")
 
 
+// ##########################################################################
+/*
+            CHECK PDF AND JPEG
+*/
+// ##########################################################################
+
+
+const pdf = jsonfile.readFileSync('scanp3-pdf/index.json');
+console.log(`pdf-directory:${Object.keys(pdf).length}`)
+check_missing_pdf(json,pdf);
+const jpeg = jsonfile.readFileSync('scanp3-jpeg/index.json');
+console.log(`jpeg-directory:${Object.keys(jpeg).length}`)
 
 // ##########################################################################
 /*
@@ -192,9 +222,10 @@ const cms = require('./cms-openacs.js');
 
 //var db;
 var package_id;
-const auteurs = {};
-const articles = {};
-const constructeurs = {}; // the only publishers here, in this App.
+const constructeurs = {}; // has key: nor_au(titre)
+const auteurs = {};       // hash key: nor_au2(title)
+const articles3 = {};      // xid
+const catalogs = {};      // xid
 
 /*
 cms.open_cms({
@@ -215,12 +246,13 @@ cms.open_cms(yaml_env)
 .catch(err=>{
   cms.close_cms();
   console.log('fatal err:',err)
+  console.trace();
   throw `fatal-247 err =>"${err.message}"`
 })
 
 // ----------------------------------------------------------------------------
 
-async function get_authors_directory() {
+async function pull_auteurs_directory() {
   assert (Object.keys(auteurs).length == 0)
   const va = await cms.authors__directory();
   va.forEach(au =>{
@@ -238,64 +270,62 @@ async function get_authors_directory() {
     }
 
   })
-  console.log(`Exit get_authors_directory - actual size: ${Object.keys(auteurs).length}`)
+  console.log(`Exit pull_auteurs_directory - actual size: ${Object.keys(auteurs).length}`)
+  return auteurs;
 }
 
 // ----------------------------------------------------------------------------
 
-function add_auteurs_from_cat3() {
-  const ha = {}; // for each auteur, list of articles.
-
-  /*
-  .filter(it=>((+it.sec ==3)&&(!it.deleted)))
-  .map(it=>{
-    const {xid, pic, yp, circa, titres, auteurs, links, transcription, restricted} = it;
-    return Object.assign({},{
-      xid, pic, yp, circa, titres, auteurs, links, transcription, restricted
-    })
-  })*/
+function add_auteurs_from_xlsx() {
 
   for (const ix in json) {
     const it = json[ix];
     if (it.deleted || +it.sec != 3) continue;
 
-    it.auteurs.forEach(au =>{
-      ha[au] = ha[au] || [];
-      ha[au].push(it.xid)
+    it.auteurs.forEach(title =>{
+      const name = utils.nor_au2(title + 'author');
+      auteurs[name] = auteurs[name] || {
+        name,
+        title,
+        xid:[],
+        dirty: true
+      };
+      auteurs[name].xid = auteurs[name].xid || [];
+      auteurs[name].xid.push(it.xid) // reference to this article.
+      auteurs[name].dirty = true;
     })
   }
 
+  // cleanup and fixes:
+  for (const name in auteurs) {
+    const auteur = auteurs[name];
+    if (!auteur.dirty) continue;
+    _assert(auteur.xid && (auteur.xid.length>0), auteur, 'fatal-289 auteur.xi corrupted');
+    const {title} = auteur;
+    auteur.data = auteur.data || {name,title};
+    auteur.data.h1 = auteur.data.h1 || title;
+    // merge auteur.data.xi with auteur.xi
+    auteur.data.xid = auteur.data.xid || [];
+    _assert(auteur.data.xid &&(Array.isArray(auteur.data.xid)) && (auteur.data.xid.length>=0), auteur, 'fatal-295 auteur.xi corrupted');
+    _assert(auteur.xid &&(Array.isArray(auteur.xid)) &&(auteur.xid.length>=0), auteur, 'fatal-296 auteur.xi corrupted');
+//    const s = new Set([...[1,2,3],...[4,5,6]]); console.log(s); throw 'stop'
+    const s = new Set([...(auteur.data.xid), ...(auteur.xid)]);
+    auteur.data.xid = Array.from(s);
+    auteur.xid = undefined;
+  }
+
+  console.log(`Exit add_auteurs_from_xlsx -- auteurs actual-size: ${Object.keys(auteurs).length}`)
+
+
   // write json/yaml files.
-  const va = Object.keys(ha)
-  .sort((a,b)=>(a.localeCompare(b)))
-  .map(atitle => ({atitle:atitle, ref:ha[atitle]}));
-  jsonfile.writeFileSync('upload3-(4)-sec3-new-auteurs.json',va,{spaces:2})
+  const va = Object.values(auteurs)
+  .sort((a,b)=>(a.title.localeCompare(b.title)))
 
-  fs.writeFileSync('upload3-(4)-sec3-new-auteurs.yaml',
-   json2yaml.stringify(va), //new Uint8Array(Buffer.from(yml)),
-   'utf8', (err) => {
-    if (err) throw err;
-//    console.log('upload-xlsx-auteurs-sec3.YAML file has been saved!');
-  });
-
-  /*
-
-      populate auteurs[]
-      key is authorName  (nor_au2)
-
-  */
-
-  Object.keys(ha).forEach(title=>{
-    // insert a (dirty) entry in auteurs without item_id.
-    const name = utils.nor_au2(title + 'author');
-    auteurs[name] = auteurs[name] || {
-      title,
-      name
-    }
-    auteurs[name].title = auteurs[name].title || title; // patch... bug
-  })
-  console.log(`Exit add_auteurs_from_cat3 -- auteurs actual-size: ${Object.keys(ha).length}`)
+  return va; // to be printed.
 } // add_auteurs_from_cat3
+
+
+
 
 function dump_auteurs(fn) {
   const va = Object.keys(auteurs)
@@ -314,89 +344,82 @@ function dump_auteurs(fn) {
 }
 
 
-async function record_new_auteurs_into_cms() {
+async function commit_dirty_auteurs() {
 
-  let new_Count =0;
-  let revision_Count =0;
-  let aCount =0; // auteurs processed.
+  let dirtyCount =0;
+  let committedCount =0;
 
   for(const ix in auteurs) {
-    const au = auteurs[ix];
+    const auteur = auteurs[ix];
+    if (!auteur.dirty) continue;
+    dirtyCount ++;
 
-    /*
-          We don't have data for an author, only:
-          - name
-          - title (legalName)
-    */
+    const {item_id, name, title, data, checksum, xi} = auteur;
+    // item_id is null for new auteurs.
+    _assert(data && data.h1 == title, auteur, `fatal-332 data.h1 corrupted`)
+    data.title = undefined;
+    _assert(data.xid && data.xid.length >0, data, `fatal-333 missing data.xi`); // we could have no xi in DB
 
-    au.data = {
-      name: au.name,
-      title: au.title
+    auteur.new_titres = undefined;
+    auteur.titles = undefined;
+
+    const new_revision = {
+//      force_new_revision: true,
+      item_id,
+      name,
+      title,
+      checksum: hash(data, {algorithm: 'md5', encoding: 'base64' }),
+      data
     }
 
-
-    aCount ++;
-    if (au.item_id) {
-      revision_Count ++;
-      if (!au.checksum) {
-        console.log(`### ALERT Missing checksum au:`,au)
-      }
-    }
-    else {
-      new_Count ++;
+    if ((new_revision.checksum == checksum)&&(!force_commit)) {
+      console.log(`NO CHANGE checksum -- committing dirty constructeur <${title}>`)
+      continue;
     }
 
-//if (!au.item_id) throw 'stop-318'
-
-    const o = await cms.author__save(au);
+    committedCount ++;
+    const o = await cms.author__save(new_revision);
     if (o.error) {
       console.log(o.error)
       throw 'fatal-234'
     }
-    if (au.revision_id == o.revision_id) revision_Count -=1;
+    if (auteur.revision_id == o.revision_id) committedCount -=1;
     else {
-      console.log('before au:',au)
+      console.log('before au:',auteur)
       console.log('after o:',o)
     }
     Object.assign(auteurs[ix],o);
 
 //    console.log(auteurs[ix]); throw 'stop-322'
   }
-  console.log(`Exit record_new_auteurs_into_cms -- total authors seen: ${aCount} (new:${new_Count} revisions:${revision_Count})`);
-  return;
-
-  /*
-        contribute to auteurs (new or revision)
-        from ha. (new auteurs)
-  */
-  /*
-  Object.keys(ha).forEach(async au=>{
-    // await cms_authors__new()...
-
-//throw 'stop-158';
-    auteurs[au] = auteurs[au] || {
-      title: au // it will be reformat later.
-    }
-  })
-  */
+  console.log(`Exit commit_dirty_auteurs -- dirty:${dirtyCount} committed:${committedCount})`);
 }
 
 // ---------------------------------------------------------------------------
 
-async function get_titles_directory() {
-  assert (Object.keys(titres).length == 0)
+async function pull_articles_directory() {
+  assert (Object.keys(articles3).length == 0)
+
   const va = await cms.articles__directory(package_id);
   va.forEach(o =>{
-    assert(!titres[o.name]);
     // article directory does not have xid.
-    titres[o.name] = o; // full object, ok - just a reference to it.
+    // FIX:
+    /*
+    if (o.title.startsWith('*')) {
+      o.title = o.data.titres[0];
+      o.dirty = true;
+    }*/
+    _assert (o.item_id, o, `fatal-423. Missing item_id`);
+    _assert (!o.xid, o, `fatal-423. xid present`);
+    if (+o.data.sec ==3) {
+      assert(!articles3[o.name]);
+      articles3[o.name] = o; // full object, ok - just a reference to it.
+    } else {
+      assert(!catalogs[o.name]);
+      catalogs[o.name] = o; // full object, ok - just a reference to it.
+    }
   })
-  console.log('Exit get_titles_directory size: ',Object.keys(titres).length);
-}
-
-// ----------------------------------------------------------------------------
-
-function add_titles_from_json3() {
+  console.log(`Exit pull_articles_directory  articles:${Object.keys(articles3).length} catalogs:${Object.keys(catalogs).length}`);
 }
 
 // ----------------------------------------------------------------------------
@@ -681,20 +704,51 @@ async function pull_constructors_directory(package_id) {
   vp.forEach(p=>{
     assert(!constructeurs[p.name]);
 
-    if (p.data) {
-      // convert to set.
-      p.data.aka = new Set(p.data.aka);
-      p.data.xi = new Set(p.data.xi);
-    } else {
+    // FIXING:
+    if (!p.data) {
+      console.log('ALERT pull_constructors_directory fixing NO Data:',p)
       p.data = {
-        aka: new Set(),
-        xi: new Set() // references to articles/catalogues.
+        name: p.name,
+        title: p.title,
+        aka: [],
+        xi: [] // catalogs.
       }
     }
 
+    _assert(p.name, p, `Missing name`)
+    _assert(p.title, p, `Missing title`)
+    p.data.title = p.data.title || p.title;
+    _assert(p.data.title == p.title, p, `fatal-708 Invalid data.title`)
 
-    assert(p.data.aka instanceof Set);
+    /*
+    if (!p.data.xi || !Array.isArray(p.data.xi)) {
+      // create empty-one
+      console.log('pull_constructors_directory cc.data.xi:',p.data.xi)
+      p.data.xi = [];
+//      throw 'stop-685 No data.xi'
+    }
+
+
+    if (p.data.acronyms) {
+      p.data.acronyms = undefined;
+      p.dirty = true;
+    }
+
+    if (p.data.legalName) {
+      p.data.legalName = undefined;
+      p.dirty = true;
+    }
+    */
+
+    p.aka = new Set(p.data.aka); // tmp.
+//    p.xi = new Set(p.data.xi); // tmp.
+    p.xi = new Set([].concat(p.data.xi)); // tmp.
+    assert(p.aka instanceof Set);
+    assert(p.xi instanceof Set);
+
+//    p.xid = new Set([].concat(p.data.xid)); // tmp.
     constructeurs[p.name] = p; // full.
+    _assert(p.data.title == p.title, p, `fatal-739 Invalid data.title`)
   })
   console.log(`Exit pull_constructors_directory size:${vp.length}`)
   return vp; // an array
@@ -704,335 +758,288 @@ async function pull_constructors_directory(package_id) {
 
 /*
 
-    Constructeurs (S1,S2) are found in isoc reformatted as an array.
-    The first item is the main publisher's name. (legalName)
-    Others are acronyms (->symlinks) (aka).
+    Constructeurs (S1,S2) are found in isoc reformatted as an array (indexNames)
+    They are acronyms aka indexNames.
 
-    (1) hh contains new constructeurs defined in xlsx. (legalName)
+    (1) hh contains new constructeurs defined in xlsx. (h1: legalName)
     (2) aggregate acronyms (aka), and set legalName.
     (3) sort and create array of new constructeurs to save as json/yaml files.
+    (4) hh does not contains aka (acronyms, indexName)
 */
 
 function add_constructeurs_from_xlsx() {
-  const hh = {}; // key is utils.nor_au2(sname)
+
+  //const hh = {}; // key is utils.nor_au2(sname)
 
   /*
-      (1) Create new entries.
-      for each article (S1,S2), pull the constructor's legalName,
-      - register in hh, add the aka.
+      Constructeur name is found in catalog.indexNames[0] => constructeur.title
 
+      (1) Create new entries.
+      for each article (S1,S2), pull the constructor's legalName (title) from indexNames[0]
+      - register in hh, add the aka.
   */
 
   for (const ix in json) {
     const it = json[ix];
     if (it.deleted) continue;
     if (it.sec ==3) continue;
-    if (!Array.isArray(it.aka)) {
-      console.log('ALERT isoc not an array:',it)
-      throw 'fatal-732.'
-    }
 
+    _assert(Array.isArray(it.indexNames) && (it.indexNames.length>0), it, 'fatal-781 indexNames is not an Array')
+//    const title = it.h1; // NOT CONSISTENT
+    const name = utils.nor_au2(it.indexNames[0]); // unique key while waiting for item_id.
+
+    _assert(it.h1, it, `fatal-804 NO DATA.H1`) // this is document.title not construteur.title
+    const title = it.h1; // first indexName[0] is also the construteur.title.
     /*
-        Eazy case is new constructeur not in DB yet.
+        h1 is the constructeur.title legalName (S1,S2)
+        but name,title are built from indexNames[0]
+        IF different from what is in the DB => push in aka.
     */
-
-    //console.log(`#constructeurs:${Object.keys(constructeurs).length}`)
-    //console.log(`constructeurs[0]:`,Object.entries(constructeurs)[0])
-    //throw 'stop-737.'
-    const _h1 = utils.nor_au2(it.h1);
-    hh[_h1] = hh[_h1] || {
-      h1: it.h1,
-      aka:new Set(),
-      xi: [],
-      xid: []
-    };
-    hh[_h1].xi.push(ix); // index in json, not xid.
-    hh[_h1].xid.push(it.xid); // index in json, not xid.
-
-    hh[_h1].aka.add(...it.aka);
-//    it.aka.forEach(aka =>{
-//      hh[_h1].aka.add(aka);
-//    })
-  };
-
-  /*
-      Here, we have a list of constructeurs not found in db,
-      or new aka to add.
-      Why we don't add directly in constructeurs ?
-      and set the dirty flag.
-  */
-  console.log(`add_constructeurs_from_xlsx hh.length:${Object.keys(hh).length}`);
-
-  /*
-      (2) aggregate acronyms.
-      for each soc hh[sname],
-      - for each cat soc.cats[] (xlsx entry)
-        - for each constructeur in cat
-          - add that constructeur as acronym to soc hh[sname].
-  */
-
-  /*
-  for (sname in hh) {
-    const s1 = hh[sname];
-    s1.xi.forEach(ix=>{
-      const cat = json[ix];
-//      s1.legalName = cat.isoc[0];
-      cat.isoc.forEach((sname2,j)=>{
-        s1.acronyms.add(sname2);
-      })
-    })
-
-    s1.acronyms.delete(s1.legalName)
-    // console.log(`<${sname}> <${s1.legalName}>::ALSO:: <${Array.from(s1.acronyms).join('> <')}>`)
-  }*/
-
-
-  /*
-      (3) sort - select data.
-  */
-
-
-  /*
-  // write json/yaml files.
-  const vcc = Object.keys(hh) // sorted list.
-  .sort((a,b)=>(a.localeCompare(b)))
-  // select what we need here...
-  .map(_h1 => {
-    const {h1,aka,xi} = hh[_h1];
-    // acronyms and xi are Set.
-
-    return {
-      item_id: null,
+    constructeurs[name] = constructeurs[name] || {
       name,
       title,
-      data: {
-        xi,
-        acronyms,
-        legalName,
-        sec
-      }
+      data: {name,title},
+      xi: new Set(),
+      aka: new Set(),
+      dirty: true
+    };
+    const p = constructeurs[name];
+
+    /*
+          ###################################################
+          IF this.title is different from actual.title in db,
+          PUSH this new title as aka.
+          ###################################################
+    */
+    // next line is for already commited constructeurs.
+    if (p.title != title) {
+      p.aka = p.aka || new Set();
+      p.aka.add(title);
     }
-  });
-  */
 
-//  .map(atitle => ({atitle:atitle, ref:ha[atitle]}));
+    _assert(p.xi instanceof Set, p, 'fatal-791')
+    _assert(p.aka instanceof Set, p, 'fatal-792')
 
-//  jsonfile.writeFileSync(`upload3-(3)-xlsx-constructeurs.json`,vsoc,{spaces:2})
+    p.xi.add(it.xid); // we don't have item_id yet!
+    p.dirty = true;
 
-  fs.writeFileSync(`upload3-(3)-xlsx-constructeurs.yaml`,
-   json2yaml.stringify(hh), //new Uint8Array(Buffer.from(yml)),
-   'utf8', (err) => {
-    if (err) throw err;
-//    console.log('upload-xlsx-auteurs-sec3.YAML file has been saved!');
-  });
+//    _assert(constructeurs[name].title == title, constructeurs[name], `fatal-818 invalid h1:<${title}>`);
+  };
 
+
+  console.log(`add_constructeurs_from_xlsx constructeurs:${Object.keys(constructeurs).length}`);
   /*
 
-      (4) Add new constructeur to constructeur directory.
-      With care when merging. FIRST check the checksum.
-
+      Here, for each constructeur.title we have a new set of catalogs (xi)
+      and a new set of aka (alias) acronyms. (!= indexNames entries.)
+      if constructeur already exists => MERGE.
   */
 
   let new_Count =0;
-  for (const _h1 in hh) {
+  for (const name in constructeurs) {
+    const p = constructeurs[name];
+    if (!p.dirty) continue;
 
-    const cc1 = hh[_h1];
-    const cc2 = constructeurs[_h1];
+    p && _assert((p.xi instanceof Set)&&(p.xi.size>0), p, 'fatal-842 xi empty')
 
-    if (!cc2) {
-      new_Count++;
-      console.log(`NEW Constructeur "${cc1.h1}" aka:`, cc1.aka);
-      constructeurs[_h1] = cc1;
-      cc1.dirty = true;
-      continue;
+    if (p.xi && p.xi.size>0) {
+      p.data.xi = Array.from(p.xi);
+      p.xi = undefined;
     }
+    p.data.xi = p.data.xi.filter(xid => (+((''+xid).replace(/"/g,''))>=3000))
 
-    //console.log(`Constructeur "${cc1.h1}" [${_h1}] already exists in db => Merging...`)
 
-    /*
-        What could change ? aka list.
-        aka-list is only for index entries. It does not affect the constructeur/publisher.
-        => replace, and tag dirty.
-    */
-
-    if (_.isEqual(cc1,cc2)) {
-      continue;
+    _assert(p.aka &&(p.aka instanceof Set), p, 'fatal-830 aka is Missing.')
+    if (p.aka && (p.aka.size>0)) {
+      p.aka.delete(p.title)
+      console.log(`Removing <${p.title}> from aka`)
+      p.data.aka = Array.from(p.aka);
+      p.aka = undefined
     }
+//    p.data.aka = p.data.aka.filter(aka => (aka != p.title))
 
-    console.log(`Constructeur "${cc1.h1}" Merging: `,cc1.aka,cc2.aka)
-    if (!cc2.aka) {
-      //console.log('cc2:',cc2)
-    }
-    cc2.aka = cc1.aka;
-    cc1.dirty = true;
-  }
+    p.data.indexNames = undefined;
+    _assert(p.data.title == p.title, p, `fatal-867 Invalid co.data.title`)
+  } // each dirty constructeur
 
-  /*
-      Convert back to arrays. !!! when
-  */
-
-
-return hh;
-
-  /*
-
-      (5) change sets into arrays. NO ! WAIT FOR OTHER SECTION....
-      resolve xi into xrefs !!!
-      that should be done later, when we have the catalogs.
-      Each catalog should be linked to the owner (publisher)
-      How to differentiate main soc[] from symlinks. ???
-
-  */
-
-  for (const sname in constructeurs) {
-    const s1 = constructeurs[sname];
-    s1.data.xi.has(0);
-    s1.data.acronyms.has('dkz');
-    // data.xi are links to articles/catalogues.
-//    s1.data.xi = Array.from(s1.data.xi).map(lineNo=>(json[lineNo].xid));
-    s1.data.xi = [];
-    s1.data.acronyms = Array.from(s1.data.acronyms);
-  }
-
-  console.log(`New constructeurs size:${vsoc.length}`)
-  console.log(`#constructeurs:${Object.keys(constructeurs).length}`)
-
-  return hh;
 } // add_constructeurs_from_xlsx
 
 
 // ---------------------------------------------------------------------------
 
-async function commit_dirty_constructeurs_into_cms() {
+async function commit_dirty_constructeurs() {
   /*
       check the list
   */
-  for (const _h1 in constructeurs) {
-    const cc1 = constructeurs[_h1]
-    assert (cc1.sec !=3)
+  let dirtyCount =0;
+  let commitCount =0;
+  const force_commit = false;
 
-    function trace() {
-      if ((!cc1.item_id) &&Array.from(cc1.data.aka).length>0) {
-        if (true) {
-          if (cc1.title == cc1.h1)
-          console.log(`## <${cc1.h1}> [${cc1.name}] ::aka::`,cc1.data.aka)
-        } else {
-          console.log(`## <${cc1.title}> [${cc1.name}] <${cc1.h1}> ::aka::`,cc1.data.aka)
-        }
-      }
-    } // trace
+  for (const _h1 in constructeurs) {
+    const co1 = constructeurs[_h1]
+    assert (co1.sec !=3)
+    if (!co1.dirty) continue;
+//    console.log(`committing dirty constructeur "${co1.title}"`)
+
+    dirtyCount ++;
 
     //trace();
-    const {item_id, name, checksum, title, h1, data} = cc1;
-    if (!Array.isArray(data.xi)) {
-      console.log(cc1);
-      throw 'stop-819'
-    }
-    assert(Array.isArray(data.xi))
-    assert(Array.isArray(data.aka))
-    data.h1 = data.h1 || '*dkz:Unknown*'
-    assert(data.h1)
+    const {item_id, name, checksum, title, data} = co1;
+    _assert(data.title == title, data, `fatal-1029 h1 corrupted`)
+    _assert(data.xi && data.xi.length >0, co1, `fatal-1028 missing data.xi`); // we could have no xi in DB
 
-    const retv = await cms.publisher__save({
+    // back to data as Arrays.
+//    data.indexNames = Array.from(indexNames)
+//    data.xi = Array.from(xi)
+    data.h1 = undefined;
+
+    const new_revision = {
 //      force_new_revision: true,
       item_id,
       name,
       title,
-      checksum, // from directory.
-      jsonb_data: data
-    });
+      checksum: hash(data, {algorithm: 'md5', encoding: 'base64' }),
+      data
+    }
+
+    if ((new_revision.checksum == checksum)&&(!force_commit)) {
+      console.log(`NO CHANGE checksum -- committing dirty constructeur <${title}>`)
+      continue;
+    }
+
+    commitCount ++;
+    const retv = await cms.publisher__save(new_revision);
 
     if (retv.error) {
-      console.log('retv:',retv); throw 'stop-808';
+      console.log('retv:',retv);
+      console.log('co1.name:',co1.name);
+      console.log('co1.data.name:',co1.data.name);
+      throw 'stop-808';
     }
-  }
 
+    _assert(retv.latest_revision, retv, 'fatal-990 missing latest_revision')
+    constructeurs[name].latest_revision = retv.latest_revision;
+    constructeurs[name].committed = true;
+    console.log(`Committed: constructeur <${title}> latest_revision:${retv.latest_revision}`)
+
+//    console.log(`committed retv:`,retv)
+//    console.log(`committed aka:`,data.aka)
+//    throw 'stop-808';
+  } // each constructeur.
+  console.log(`number of dirty:${dirtyCount} commits:${commitCount}`);
+  return constructeurs;
 }
 
 // ---------------------------------------------------------------------------
 
 function add_catalogs_from_xlsx() {
+  console.log(`----------------------------`)
+  console.log(`Adding catalogs from xlxs...`)
 
-  const hh = new Set(); // just to check collisions.
   let missed_pCount =0;
+
+  Object.keys(catalogs).forEach(name=>{
+    _assert((catalogs[name].item_id), catalogs[name], 'fatal-1069 Missing item_id')
+  })
 
   for (const ix in json) { // array
     const it = json[ix];
     if (it.deleted) continue;
     if (it.sec ==3) continue;
 
-//    it.publisher = it.publisher || (it.isoc && it.isoc[0]) || '*Unknown-publisher*'
-//    it.publisherName = utils.nor_au2(it.publisher);
+    // here (S1,S2)
 
     // here it's a catalog, lets take what we need.
     const {xid, sec, yp, circa, pic, co,
       h1, h2, fr, en, zh, mk, ci, sa,
-      isoc,
-      links, transcription, restricted,
-      title, publisher, publisherName
+      indexNames, // for cIndex
+      // h1 is the constructeur legalName
+      links, transcription, restricted
     } = it; // from xlsx, reformat adding publisherName.
 
-    assert(publisher)
-    assert(title == publisher)
-    assert(publisherName)
+//    _assert(it.data._publisherName, it, 'fatal-1210 Missing data._publisherName')
+    _assert(indexNames && indexNames.length >0, it, 'fatal-1088 Missing indexNames.')
+
+    /*
+        indexNames[0] is the constructeur name for this catalog
+        h1 is the title for the catalog
+        indexNames[i>=0] are all entries in constructeurs-index
+        A constructeur has unique key-name (nor_au2).
+    */
+    const title = h1;
+    const name = `mapp-catalog-${xid}`;
+    const _cName = utils.nor_au2(indexNames[0]);
     /*
 
-        check if publisher exists.
+        check if constructeur-publisher exists.
 
     */
-
-    if (!soc[publisherName]) {
-      console.log(`article xid:${xid} publisher (${publisher}) not found [${publisherName}]`)
-      missed_pCount ++;
-    } else {
-      if (verbose)
-      console.log(`article xid:${xid} publisher (${publisher}) was found Ok. [${publisherName}]`)
-    }
+    _assert(constructeurs[_cName], _cName, `fatal-1110 Missing constructeur <${indexNames[0]}> for catalog.title: <${title}>`)
+    const parent_id = constructeurs[_cName].item_id;
+    _assert (parent_id, constructeurs[_cName], `fatal-1113 constructeur [${_cName}] Missing parent_id`);
 
 
     const data = {
-      title,
-      publisher, publisherName,
-      xid, sec, yp, circa, pic, co,
-      h1, isoc, h2, fr, en, zh, mk, ci, sa,
-      links, transcription, restricted
-    }
-
-    const name = `mapp-catalog-${xid}`;
-
-    assert(!hh.has(name)); hh.add(name);
-
-    titres[name] = titres[name] || {
-      item_id: null,
       name,
-      title, // indexName
-      data,
+//      title,  (title === h1)
+      xid, sec, yp, circa, pic, co,
+      h1, h2, fr, en, zh, mk, ci, sa,
+      links, transcription, restricted,
+      indexNames, // constructeur name, alias, index entries.
+//      _publisherName:_cName // nor_au2
+    }
+    _assert ((title == data.h1), data, `fatal-1125 title:<${title}> does not match data.h1`);
+
+    console.log(`New catalog-candidate title:<${title}> name:<${name}>`)
+
+    catalogs[name] = catalogs[name] || {
+        item_id: null,
+        parent_id,
+        name,
+        title, // h1
+        data,
+        // will not go into db
+        xid, // is known ONLY for new catalogs.
+        //cName, _cName,
+        indexNames,
+        dirty: true
+      }
+
+//      hh[name] = articles[name];
+    if (!catalogs[name].item_id) {
+      console.log(`New catalog title:<${title}> name:<${name}>`)
+      continue;
+    }
+
+    /*
+        Here, we are in update mode. MERGE
+    */
+    const a1 = catalogs[name];
+    /*
+
+          ERROR IN XLSX ====> IGNORE THOSE CATALOGS.
+
+    */
+    if (!a1.item_id) {
+      console.log(`ALERT CORRUPTED XID IGNORED`);
+//      continue;
+    }
+
+    _assert (a1.item_id, a1, `fatal-1158 Missing item_id for catalogs[${name}]`);
+    // should we test the checksum here ? NO, it will be done later.
+    if (parent_id != a1.parent_id) {
+      console.log(`ALERT parent_id has changed ${a1.item_id} => ${parent_id}`)
+    }
+
+    Object.assign(a1,{
+      title,
+      parent_id,
+      data, // might have a different constructeur.
+      // will not go into db
       xid, // is known for new catalogs.
-      publisher,
-      publisherName,
-      dirty: true
-    }
-
-    function dump(o) {
-      console.log(o)
-    }
-
-    const _titre = titres[name]; // only way to retrieve an article.
-    if (_titre.item_id) {
-      // here we are in update mode.
-      // what can happen here ? new name, title, data ....
-      assert (name == _titre.name)
-//      assert (title == _titre.title, dump(_titre))
-//      assert (title == _titre.title)
-      _titre.title = title;
-
-// xid is not in directory      assert (xid == _titre.data.xid)
-      _titre.data = data; // replace :: we are NOT loosing the old checksum.
-      _titre.dirty = true;
-      // because still in _titre.checksum - we are safe!
-      _titre.publisher = publisher;
-      _titre.publisherName= publisherName;
-    }
+      _cName, indexNames,
+      dirty:true
+    })
 
     /*
         NOTE: only new article have an xid.
@@ -1040,8 +1047,11 @@ function add_catalogs_from_xlsx() {
   } // loop on json
 
 
-  console.log(`Exit add_catalogs_from_xlsx titres size: ${Object.keys(titres).length} Missed publishers: ${missed_pCount}`)
+  function dump(o) {
+    console.log(o)
+  }
 
+  console.log(`Exit add_catalogs_from_xlsx ${Object.keys(catalogs).length} articles - Missed publishers: ${missed_pCount}`)
 } // add_catalogs_from_xlsx
 
 // ---------------------------------------------------------------------------
@@ -1050,9 +1060,9 @@ function add_catalogs_from_xlsx() {
     Candidates for create/update have a property new_data.
 */
 
-async function record_new_catalogs_into_cms() {
-  for (const name in titres) { // array
-    const it = titres[name]; // with xid.
+async function commit_dirty_catalogs() {
+  for (const name in catalogs) { // array
+    const it = catalogs[name]; // with xid.
     if (it.deleted) continue;
     if (it.sec ==3) continue;
     if (!it.dirty) continue;
@@ -1061,22 +1071,22 @@ async function record_new_catalogs_into_cms() {
         NOTE: only new article have an xid.
     */
 
+    /* WAS CHECKED EARLIER
     if (!soc[it.publisherName]) {
-      console.log(`record_new_catalogs_into_cms:: article xid:${it.xid} publisher (${it.publisher}) not found [${it.publisherName}]`)
+      console.log(`commit_dirty_catalogs:: article xid:${it.xid} publisher (${it.publisher}) not found [${it.publisherName}]`)
       missed_pCount ++;
       continue;
     } else {
       if (false)
-      console.log(`record_new_catalogs_into_cms:: article xid:${it.xid} publisher (${it.publisher}) was found Ok. [${it.publisherName}]`)
+      console.log(`commit_dirty_catalogs:: article xid:${it.xid} publisher (${it.publisher}) was found Ok. [${it.publisherName}]`)
     }
+    */
+
 
     //    it.force_new_revision = true;
-
-    it.parent_id = soc[it.publisherName].item_id;
-    if (!it.parent_id) {
-      console.log(`publisher[${soc[it.publisherName]}]:`,soc[it.publisherName]);
-      throw 'stop-970'
-    }
+    _assert(it.parent_id, it, 'fatal-1208 Missing parent_id.')
+//    _assert(it._cName, it, 'fatal-1210 Missing data._cName')
+    _assert(it.data.indexNames && it.data.indexNames.length >0, it, 'fatal-1211 Missing indexNames for index-constructeurs')
     await cms.article__save(it);
     it.dirty = false;
   }
@@ -1122,7 +1132,7 @@ function check_articles_parent_publisher() {
 
 function add_articles3_from_xlsx() {
 
-  const hh = new Set(); // just to check collisions.
+//  const hh = new Set(); // just to check collisions.
   let missed_pCount =0;
   let dirty_Count = 0;
 
@@ -1131,52 +1141,83 @@ function add_articles3_from_xlsx() {
     if (it.deleted) continue;
     if (it.sec !=3) continue;
 
-    const {xid, sec, yp, circa, pic, co,
-      h1, h2, fr, en, zh, mk, ci, sa,
-      isoc,
+    const {xid, sec,
+      yp, circa,
+      pic,
+      h1, // titre de l'article
+      h2,
+      fr, en, zh,
+      mk,
+      co, ci, sa,
       links, transcription, restricted,
-      title,
-      titres:_titres, auteurs:_auteurs
+      indexNames, // entries in index.
+      auteurs:_auteurs // to avoid confict with global auteurs[]
     } = it; // from xlsx, reformat adding publisherName.
 
-    assert(Array.isArray(_titres))
-    assert(Array.isArray(_auteurs))
+    const name = `mapp-article3-${xid}`;
+    const title =  h1;
+
+    const data = {
+      xid, sec, yp, circa, pic, co,
+      h1, h2, fr, en, zh, mk, ci, sa,
+      links, transcription, restricted,
+      auteurs:_auteurs, // should we use the normalized form ?
+      indexNames
+    }
+
+    _assert(Array.isArray(indexNames) && (indexNames.length>0), it, 'fatal-1284 indexNames not an Array or null')
+    _assert(Array.isArray(_auteurs) && (_auteurs.length>0), it, 'fatal-1285 auteurs not an Array or null')
 
     /*
       Should we save auteurs.item_id ????
     */
-
-    _auteurs.forEach(au=>{
+    // VALIDATION
+    _auteurs.forEach(title=>{
 //      console.log(`xid:${xid} au:(${au}) [${utils.nor_au2(au+'author')}]=> item_id:${auteurs[utils.nor_au2(au+'author')].item_id}`,auteurs[utils.nor_au2(au+'author')].title);
-      const name = utils.nor_au2(au+'author');
+      const name = utils.nor_au2(title+'author');
       if (!auteurs[name]) {
-        console.log(`article xid:${xid} auteur (${name}) not found [${au.title}]`)
+        console.log(`article xid:${xid} auteur (${name}) not found [${title}]`)
         missed_pCount ++;
+        console.log(`#auteurs:${Object.keys(auteurs).length}`)
+        _assert(auteurs[name], it, `fatal-1297 auteur <${title}>[${name}] not found for article(S3).title:<${title}>`);
       } else {
         if (verbose)
-        console.log(`article xid:${xid} auteur (${name}) was found Ok. [${au.title}]`)
+        console.log(`article xid:${xid} auteur (${name}) was found Ok. [${title}]`)
       }
-    })
+    });
 
-    const data = {
-      title,
-      titres:_titres, auteurs:_auteurs,
-      xid, sec, yp, circa, pic, co,
-      h1, isoc, h2, fr, en, zh, mk, ci, sa,
-      links, transcription, restricted
+
+    // HERE THE PUBLISHER (parent_id) DOES NOT CHANGE.... bidon.
+
+    if (articles3[name]) {
+      const a1 = articles3[name];
+      _assert(a1.item_id, a1, `fatal-1180 - Missing item_id`)
+      _assert(a1.data.xid == xid, a1, `fatal-1319 xid:${xid} does not match a1.xid:${a1.xid}`)
+      _assert(a1.data.sec == 3, a1, `fatal-1320 Invalid a1.data,sec`)
+      Object.assign(a1, {
+        data,
+        title,
+        dirty:true
+      })
+      _assert(a1.item_id, a1, 'fatal-1187 Missing item_id');
+      continue;
     }
 
-    const name = `mapp-article3-${xid}`;
+    //_assert(!!parent_id, it, 'fatal-1329 New article(S3) Missing parent_id')
 
-    assert(!hh.has(name)); hh.add(name);
-
-    titres[name] = titres[name] || {
+    /*
+        NEW ARTICLE (S3)
+    */
+    _assert(false, articles3[name], `fatal-1196 article not found name:<${name}> title:<${title}> articles3:${Object.keys(articles3).length}`)
+    articles3[name] = {
       item_id: null,
+      // parent_id, will be set @commit
       name,
       title, // indexName
       data,
-      xid, // is known for new catalogs.
-      auteurs:[], titres:[], // for index.
+//      xid, // is known for new catalogs.
+//      auteurs: _auteurs,
+//      indexNames, // for index.
       dirty: true
     }
 
@@ -1184,7 +1225,8 @@ function add_articles3_from_xlsx() {
       console.log(o)
     }
 
-    const _titre = titres[name]; // only way to retrieve an article.
+    /*
+    const _titre = articles[name]; // only way to retrieve an article.
     if (_titre.item_id) {
       // here we are in update mode.
       // what can happen here ? new name, title, data ....
@@ -1201,97 +1243,101 @@ function add_articles3_from_xlsx() {
 //      _titre.publisherName= publisherName;
     }
 
-    if (titres[name].dirty) {
+    if (articles[name].dirty) {
       dirty_Count ++;
-    }
+    }*/
 
-    assert(+titres[name].data.sec == 3)
+    assert(+articles3[name].data.sec == 3)
     /*
         NOTE: only new article have an xid.
     */
   } // loop on json
 
 
-  console.log(`Exit add_articles3_from_xlsx() titres size: ${Object.keys(titres).length} Missed authors: ${missed_pCount} dirty_Count:${dirty_Count}`)
+  console.log(`Exit add_articles3_from_xlsx() titres size: ${Object.keys(articles3).length} Missed-authors:${missed_pCount} dirty_Count:${dirty_Count}`)
 
 } // add_articles3_from_xlsx
 
 // ---------------------------------------------------------------------------
 
-async function record_new_articles3_into_cms() {
+async function commit_dirty_articles_S3() {
 
   /*
       FIRST, we need publisher "S3" articles-section3
   */
 
-  const title = 's3publisher';
-  const name = utils.nor_au2(title);
-/*
-  const a3 = await cms.publisher__get({name});
-  if (!a3.item_id) {
-    const a3 = await cms.publisher__new({
+  const parent_id = await (async ()=>{
+    const title = 's3publisher';
+    const name = utils.nor_au2(title);
+    const s3 = await cms.publisher__new({
       name,
       title,
       data: {name,title}
-    });
-    item_id = a3.item_id;
-  } else {
-    item_id = a3.item_id;
-  }
-*/
+    })
+    const {item_id:parent_id} = s3;
+    _assert(parent_id, s3, 'fatal-1397 Unable to get s3publisher parent_id');
+    return parent_id;
+  })();
 
-  const s3 = await cms.publisher__new({
-    name,
-    title,
-    data: {name,title}
-  })
-  const {item_id} = s3;
-  if (!item_id) {
-    console.log(`item_id:${item_id} s3:`,s3);
-  }
+  assert(parent_id)
 
   /*
       LOOP for each article
   */
 
-  console.log(`1261- processing titres size:${Object.keys(titres).length}`)
+  console.log(`1261- processing articles size:${Object.keys(articles3).length}`)
 //  let nochange_Count =0;
   let tCount =0;
   let revision_Count =0;
 
-  for (const name in titres) { // array
-    const it = titres[name]; // with xid.
+  for (const name in articles3) { // array
+    const it = articles3[name]; // with xid.
     if (it.deleted) continue;
     if (it.data.sec !=3) continue;
     if (!it.dirty) continue;
+
+    _assert(it.item_id, it, 'fatal-1283')
+
+
+    /*
+        Validation
+    */
+    if (!it.item_id) {
+      _assert(!it.parent_id, it, 'fatal-1288')
+  //    _assert(it.xid, it, 'fatal-1289')
+    } else {
+      _assert(it.parent_id, it, 'fatal-1291')
+//      _assert(!it.xid, it, 'fatal-1292')
+    }
+
 
     /*
         NOTE: only new articles have an xid.
     */
 
-    /*
-    if (!soc[it.name]) {
-      console.log(`record_new_articles3_into_cms:: article xid:${it.xid} publisher (${it.publisher}) not found [${it.publisherName}]`)
-      missed_pCount ++;
-      continue;
-    } else {
-      if (false)
-      console.log(`record_new_articles3_into_cms:: article xid:${it.xid} publisher (${it.publisher}) was found Ok. [${it.publisherName}]`)
-    }*/
-
     //    it.force_new_revision = true;
 
-    it.parent_id = item_id;
-    if (!it.parent_id) {
-      console.log(`publisher[${soc[it.publisherName]}]:`,soc[it.publisherName]);
-      throw 'stop-970'
-    }
+    /*
+    _assert (it.data.indexNames, it, 'fatal-1426 Missing titres');
+    it.title = it.title || it.data.indexNames[0];
+    _assert (it.title, it, 'fatal-1427 Missing title');
+    _assert (it.parent_id, it, 'fatal-1428 Missing parent_id');
+    */
+
+    console.log(`Commit article xid:${it.data.xid} title:<${it.title}>`)
+
+    it.parent_id = parent_id;
+
     const w1 = await cms.article__save(it);
+    _assert(!w1.error, {it,w1}, 'fatal-1298 Unable to commit article(S3)')
+
     if (w1.error) {
       console.log('dirty@1267:',it)
       console.log('w1:',w1);
       throw 'stop-1293.'
     }
+
+
     if (w1.info) {
       //if (w1.retCode != 'ok')
       console.log(`w1.info (xid:${it.data.xid}) retCode:${w1.retCode} message:`, w1.info);
@@ -1301,8 +1347,8 @@ async function record_new_articles3_into_cms() {
     tCount++;
     it.dirty = false;
   } // loop.
-  console.log(`Exit: record_new_articles3_into_cms rCount:${revision_Count}/${tCount}`)
-} // record_new_articles3_into_cms
+  console.log(`Exit: commit_dirty_articles_S3 rCount:${revision_Count}/${tCount}`)
+} // commit_dirty_articles_S3
 
 
 // ---------------------------------------------------------------------------
@@ -1329,16 +1375,43 @@ function check2(x,y) {
   }
 }
 
+function _assert(b, o, err_message) {
+  if (!b) {
+    console.log(`######[${err_message}]_ASSERT=>`,o);
+    console.trace(`######[${err_message}]_ASSERT`);
+    throw {
+      message: err_message // {message} to be compatible with other exceptions.
+    }
+  }
+}
+
+
 // --------------------------------------------------------------------------
 
 function dump_array(a,fn) {
-  if (fn.endsWith('yaml')) {
-    fs.writeFileSync(fn,
+  if (fn.endsWith('.yaml')) {
+    const err = fs.writeFileSync(fn,
      json2yaml.stringify(a), //new Uint8Array(Buffer.from(yml)),
-     'utf8', (err) => {
-      if (err) throw err;
-      console.log(`<${fn}> file cpmplete!`);
-    });
+     'utf8');
+  } else {
+    throw 'Invalid file format'
+  }
+}
+
+// --------------------------------------------------------------------------
+
+function check_missing_pdf(json, pdf) {
+  let missingCount =0;
+  for (const ix in json) {
+    const it = json[ix];
+    if (it.deleted) continue;
+
+    it.links.forEach(link =>{
+      if (!pdf[link.fn + '.pdf']) {
+        missingCount++;
+        console.log(`${missingCount} Missing PDF <${link.fn}> for document xid:${it.xid}`)
+      }
+    })
   }
 }
 
@@ -1349,18 +1422,32 @@ async function main() {
 //  console.log(`main ctx:`,Object.keys(ctx))
 //  var {db} = ctx;
 
+
+
+
+
   if (stop_number <2) {
     println('--------------------------------------------------------------------------')
     console.log(`Stop-number is ${stop_number}`)
     console.log(`file: upload3-(1.0)-xlsx-original.json`)
     console.log(`file: upload3-(1.1)-reformatted.json`)
-    console.log(`Next stop is 'Getting publishers directory' => ./upload3.json -n 2`)
+    console.log(`Next stop is 'pulling all data from DB' => ./upload3.json -n 2`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
   const vp = await pull_constructors_directory(package_id); // publishers == constructeurs
-  dump_array(vp, `upload3-(2)-constructeurs.yaml`)
+  dump_array(vp, `upload3-(2.1)-constructeurs.yaml`)
+
+  await pull_auteurs_directory();
+  dump_array(auteurs, `upload3-(2.2)-authors.yaml`)
+
+  await pull_articles_directory();         // all sections. (articles)
+  console.log('dumping articles3.yaml....')
+  dump_array(articles3,'upload3-(2.3)-articles3.yaml')
+  console.log('dumping catalogs.yaml....')
+  dump_array(catalogs,'upload3-(2.4)-catalogs.yaml')
+
 
   if (stop_number <3) {
     println('--------------------------------------------------------------------------')
@@ -1372,100 +1459,96 @@ async function main() {
   }
 
   add_constructeurs_from_xlsx(); // sec1 & sec2
+  dump_array(constructeurs, `upload3-(3)-xlsx-constructeurs.yaml`)
 
   if (stop_number <4) {
     println('--------------------------------------------------------------------------')
     console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(3)-constructeurs.json`)
-    console.log(`Next stop is 'Commit new constructeurs sec1 & sec2'. (-n 4)`)
+    console.log(`file: upload3-(3)-xlsx-constructeurs.yaml`)
+    console.log(`Next stop is 'Commit-dirty-constructeurs (S1,S2)'. (-n 4)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
   // add_publishers_from_xlsx(); // sec3
-  await commit_dirty_constructeurs_into_cms() // ~ publishers ~like auteurs
+  const hh4 = await commit_dirty_constructeurs() // ~ publishers ~like auteurs
+  dump_array(hh4, `upload3-(4)-constructeurs-commited.yaml`)
+
 
   if (stop_number <5) {
     println('--------------------------------------------------------------------------')
     console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(4)-constructeurs.json`)
-    console.log(`Next stop is 'Getting titles/articles directory from DB'. (-n 5)`)
+    console.log(`check file: upload3-(5)-authors.yaml`)
+    console.log(`Next stop is 'Adding authors from xlsx cat3'. (-n 6)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  await get_titles_directory();         // all sections. (articles)
+  add_auteurs_from_xlsx();
+  dump_array(auteurs,'upload3-(5)-xlsx-auteurs.yaml')
 
   if (stop_number <6) {
     println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Adding catalogs from sec1 & sec2'. (-n 6)`)
+    console.log(`Stop-number is ${stop_number}`)
+    console.log(`check file: upload3-(6)-xlsx-auteurs.yaml`)
+    console.log(`Next stop is 'Commit dirty authors (S3)'. (-n 7)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  add_catalogs_from_xlsx();             // from sec1 & sec2 only.
+  await commit_dirty_auteurs()
+  dump_array(auteurs,'upload3-(6)-auteurs-committed.yaml')
+
 
   if (stop_number <7) {
     println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Recording new catalogs (or updates) from sec1 & sec2'. (-n 7)`)
+    console.log(`Stop-number is ${stop_number}`)
+    console.log(`check file: upload3-(6)-catalogs.yaml`)
+    console.log(`Next stop is 'Adding catalogs from xlsx (S1,S2)'. (-n 7)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  await record_new_catalogs_into_cms();
+  console.log('add catalogs from xlsx....')
+  add_catalogs_from_xlsx();             // from sec1 & sec2 only.
+  dump_array(catalogs,'upload3-(7)-xlsx-catalogs.yaml')
 
   if (stop_number <8) {
     println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Getting authors-directory'. (-n 8)`)
+    console.log(`Stop-number is ${stop_number}`)
+    console.log(`check file: upload3-(7)-xlsx-catalogs.yaml`)
+    console.log(`Next stop is 'Commit dirty catalogs' (S1,S2). (-n 8)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  await get_authors_directory();
+  await commit_dirty_catalogs();
+  dump_array(catalogs, 'upload3-(8)-catalogs-committed.yaml')
 
   if (stop_number <9) {
     println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Adding authors from cat3'. (-n 9)`)
+    console.log(`Stop-number is ${stop_number}`)
+    console.log(`check file: upload3-(8)-articles-committed.yaml`)
+    console.log(`Next stop is 'Add xlsx-articles3' (S3). (-n 9)`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  await add_auteurs_from_cat3();
-  dump_auteurs('upload3-(5)-sec3-auteurs-full.yaml')
+
+  add_articles3_from_xlsx();
+  dump_array(articles3,'upload3-(9)-xlsx-articles-S3.yaml')
 
   if (stop_number <10) {
     println('--------------------------------------------------------------------------')
     console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Recording new authors (or updates) for cat3'. (-n 10)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  await record_new_auteurs_into_cms()
-
-  if (stop_number <11) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`Next stop is 'Adding new article (sec3) from xlsx'. (-n ${stop_number+1})`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  add_articles3_from_xlsx();
-
-  if (stop_number <12) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
+    console.log(`check file: upload3-(9)-xlsx-articles-S3.yaml`)
     console.log(`Next stop is 'Recording new article (sec3)'. (-n ${stop_number+1})`)
     println('--------------------------------------------------------------------------')
     return;
   }
 
-  await record_new_articles3_into_cms();
+  await commit_dirty_articles_S3();
+//  dump_array(articles,'upload3-(12)-articles-S3-committed.yaml')
 
   println('--------------------------------------------------------------------------')
   console.log(`Your stop-number is ${stop_number}`)

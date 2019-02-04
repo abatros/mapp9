@@ -2,93 +2,23 @@ const assert = require('assert')
 const hash = require('object-hash');
 
 //import {get_connection, utils, db_conn} from './oacs-museum.js';
-import cms from '../xlsx-upload/cms-openacs.js'
-
+//import cms from '../xlsx-upload/cms-openacs.js'
+import {db, package_id} from './cms-server.js'
+import dkz from '../imports/dkz-lib.js'
 console.log('/server/lib/methods.js executed.')
-
-var db;
-var package_id;
-
-Meteor.startup(() => {
-
-//  db = cms.get_connection();
-//  console.log('db:',Object.keys(db))
-console.log(`Meteor.settings.public:`,Meteor.settings.public)
-console.log(`Meteor.settings.private:`,Meteor.settings.private)
-
-  /*
-  process.env.DB_HOST = Meteor.settings.private.host;
-//  process.env.DB_PORT || 5432,
-  process.env.DB_USER = Meteor.settings.private.user;
-  process.env.DB_PASS = Meteor.settings.private.password;
-
-
-
-  cms.open_cms({
-    package_id:236393,
-    autofix:true,
-    pg_monitor:true
-  })
-*/
-
-  cms.open_cms(Meteor.settings.private)
-  .then(ctx =>{
-    db = ctx.db;
-    package_id = ctx.package_id;
-    assert(db)
-  })
-  .catch(err=>{
-    cms.close_cms();
-    console.log('fatal err:',err)
-    throw `fatal-247 err =>"${err.message}"`
-  })
-
-
-});
-
 
 
 Meteor.methods({
-  'cms-auteurs-directory': (cmd) =>{
-    const etime = new Date().getTime();
-    const audit = [];
-    return db.query("select * from cms_authors__directory;",[])
-    .then(data =>{
-      return data;
-    })
-    .catch(err =>{
-      console.log(`cms-auteurs-directory err:`,err)
-      cmd.error = err.message;
-      return cmd;
-    })
-  }, // authors-directory
-  'cms-articles-directory': (cmd) =>{
-    const etime = new Date().getTime();
-    const query1 = `select * from cms_articles__directory;`
-    const query2 = `
-    select item_id,
-      name, title,       -- index ready
-      data->>'h1' as h1, -- legalName
-      data->'h2' as h2,  -- array NOT text
-      data->>'yp' as yp
-    from cms_articles__directory
-    where package_id = $1
-    `;
-    return db.query(query2, [package_id])
-    .then(data =>{
-      return data;
-    })
-    .catch(err =>{
-      console.log(`cms-articles-directory err:`,err)
-      cmd.error = err.message;
-      return cmd;
-    })
-  }, // titles-directory
   'titre-infos': (cmd) =>{
     const etime = new Date().getTime();
     const audit = [];
     assert(cmd.item_id)
-    return db.query("select * from cms_articles__directory where item_id = $(item_id);",cmd)
+    return db.query(`
+      select a.*, p.title as publisher_title
+      from cms_articles__directory a
+      join cms_publishers__directory p on (p.item_id = a.parent_id)
+      where a.item_id = $(item_id);
+    `,cmd)
     .then(data =>{
       assert(data.length == 1)
       return data[0];
@@ -245,35 +175,7 @@ Meteor.methods({
 // -------------------------------------------------------------------------
 
 Meteor.methods({
-  'soc-directory': (query) =>{
-    try {
-      const etime = new Date().getTime();
-      const audit = [];
-      return db.query("select * from cms_publishers__directory;",[])
-      .then(data =>{
-        return data;
-      })
-    }
-    catch(e) {
-      console.log(e)
-    }
-  }, // publishers-directory
 
-  'soc-infos': (o) =>{
-    const etime = new Date().getTime();
-    const audit = [];
-    assert(o.item_id)
-    return db.query("select * from cms_publishers__latest where item_id = $(item_id);",o)
-    .then(data =>{
-      assert(data.length == 1)
-      return data[0];
-    })
-    .catch(err=>{
-      console.log(`fatal-error in soc-infos:`,err)
-      o.error = err;
-      return o;
-    })
-  }, // title-infos
 
   'insert-new-publisher': (o) =>{
     return utils.cms_publisher__new(o)
@@ -334,7 +236,11 @@ Meteor.methods({
 
   'publisher::new-revision': (o) =>{
 
-    o = dkz.undefine(o, 'revision_id');
+//    o = dkz.undefine(o, 'revision_id');
+    o = Object.assign(o, {
+      revision_id: undefined
+    });
+
 
     const missing = dkz.check_missing(o,'item_id title');
     if (missing) {
@@ -342,13 +248,10 @@ Meteor.methods({
       throw (`fatal-104 Missing parameters : `,missing);
     }
 
-    const p1 = db.query("select cms_publisher__new_revision($1)",[o])
+    const p1 = db.query("select cms_publisher__new_revision($1)",[o],{single:true})
     console.log(`update-titre p1:`,p1);
     return p1.then(retv=>{
-      return ({
-        new_revision_id: retv[0].cms_publisher__new_revision,
-        retCode: 'ok'
-      })
+      return retv.cms_publisher__new_revision;
     })
   },
 
@@ -393,90 +296,21 @@ Meteor.methods({
 
   // -------------------------------------------------------------------------
 
-  'index-constructeurs2': (cmd)=>{
-    const etime = new Date().getTime();
-    return db.query(`
-      select * from mapp.index_constructeurs($1);
-      `,[{package_id}],{single:false})
-    .then(retv =>{
-      console.log(`index-constructeurs =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
-      return retv
-    })
-    .catch(err=>{
-      console.log(`index-constructeurs err:`,err)
-      return {
-        error:err.message
-      }
-    })
-  },
-
-  'index-constructeurs': (cmd)=>{
-    const etime = new Date().getTime();
-    const query = `
-select
-   latest_revision,
-   title,
-   item_id,
-   data->'links' as links,
-   data->>'yp' as yp,
-   (data->>'transcription')::boolean as transcription,
-   (data->>'restricted')::boolean as restricted,
-   data->>'xid' as xid,
-   data->'isoc' as aka,
-   data->>'sec' as sec
-from cms_articles__directory
-where (data->>'sec' != '3')
---and (data->>'titles' is not null)
-and (package_id = ${package_id})
-`;
-
-    return db.query(query,[],{single:false})
-    .then(retv =>{
-      console.log(`index-constructeurs =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
-      return retv
-    })
-    .catch(err=>{
-      console.log(`index-constructeurs err:`,err)
-      return {
-        error:err.message
-      }
-    })
-  },
 
   // --------------------------------------------------------------------------
 
-  'index-s3': (cmd)=>{
-    const etime = new Date().getTime();
-    const query = `-- index-s3
-select
---   latest_revision,
---   title,
---   item_id,
-   data->'titres' as titres,
-   data->'auteurs' as auteurs,
-   data->'links' as links,
-   data->>'yp' as yp,
-   (data->>'transcription')::boolean as transcription,
-   (data->>'restricted')::boolean as restricted,
-   data->>'xid' as xid
-from cms_articles__directory
-where (data->>'sec' = '3')
---and (data->>'titles' is not null)
-and (package_id = ${package_id})
-`;
-
-    return db.query(query,[],{single:false})
-    .then(retv =>{
-      console.log(`index-s3 =>${retv.length} rows in ${new Date().getTime()-etime} ms.`)
-      return retv
-    })
-    .catch(err=>{
-      console.log(`index-s3 err:`,err)
-      return {
-        error:err.message
-      }
-    })
-  }
-
-
 });
+
+// ----------------------------------------------------------------------------
+
+function _assert(b, o, err_message) {
+  if (!b) {
+    console.log(`######[${err_message}]_ASSERT=>`,o);
+    console.trace(`######[${err_message}]_ASSERT`);
+    throw {
+      message: err_message // {message} to be compatible with other exceptions.
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------

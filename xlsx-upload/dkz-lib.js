@@ -113,7 +113,7 @@ exports.nor_au2 = function(s) {
   const h = {};
   const v = s && (''+s).toLowerCase()
   .RemoveAccents()
-  .replace(/[\(\)\-\.]/g,' ')
+  .replace(/[\(\)\-\.\']/g,' ')
 //  .replace(/[^a-z]/g,' ')
   .replace(/\s+/g,'') // insenstive to spaces, dots, dashes and ().
   .split('')

@@ -1,17 +1,22 @@
-const TP = Template['edit_title'];
+const TP = Template['title_popup'];
 
-import {utils, app} from './app-client.js';
+import {utils, app} from '../app-client.js';
+import {nor_au2} from '../../xlsx-upload/dkz-lib.js'
 
 TP.onCreated(function(){
 //  this.original_title = Session.get('original-title'); // flip-flop
 // this.normal_name.set(utils.normal_title(this.original));
   this.autogen = true;
-  console.log('data:',this.data)
-  this.new_title = this.data.parent.title;
-//  this.new_name = new ReactiveVar(utils.normal_title(this.new_title));
-//  this.new_name = new ReactiveVar(this.data.parent.name);
-  this.new_name = new ReactiveVar(utils.normal_title(this.new_title));
-  // this.data.original is data from parent.
+  console.log('onCreated data:',this.data) // is the original.
+  const {name, title, on_apply} = this.data;
+  // this.data is the original
+  this.data._title = title;
+  this.data._name = new ReactiveVar(nor_au2(title));
+
+  const tp = this;
+  this.assert = function(err){
+    tp.data.err_message = err;
+  }
 })
 
 TP.onRendered(()=>{
@@ -20,48 +25,56 @@ TP.onRendered(()=>{
 
 TP.helpers({
   uname() {
-    tp = Template.instance();
-    return tp.new_name.get();
+    const new_name = Template.instance().data._name.get()
+    return new_name;
   }
 })
 
 TP.events({
   'input .js-new-title': (e,tp)=>{
-    tp.new_title = e.target.value;
-    const new_name = utils.normal_title(tp.new_title);
-    console.log(`(${tp.new_title})=>(${new_name})`)
+    tp._title = e.target.value; // so we don't need to consult the UI. later
+    const _name = nor_au2(tp._title);
+    console.log(`(${tp._title})=>(${_name})`)
     // check if collision.
     if (tp.autogen) {
-      tp.new_name.set(new_name)
+      tp.data._name.set(_name)
     }
   },
   'click .js-quit': (e,tp)=>{
-    Session.set('original-title',null);
-    tp.data.parent._post_edit_title({
-      retCode: 'quit'
+    // How to tell the parent to close.
+    tp.data.on_exit({
+      retCode: 'js-quit'
     })
-    // the parent will close.
+    return;
   },
+});
+
+
+TP.events({
   'click .js-apply': async (e,tp)=>{
     /*
       collect new data and send back to caller for processing.
     */
 
-    const new_name = tp.new_name.get();
-    if (!new_name) {
+    /*
+    const name = tp.data._name.get();
+    if (!name) {
       console.log('UNAME NOT SET. try again or quit')
       return;
-    }
+    }*/
 
-    const parent = tp.data.parent
+//    const parent = tp.data.parent
     const cmd = {
-      name: new_name,
-      title: tp.new_title,
-      retCode: 'apply'
+      name: tp.data._name.get(),
+      title: tp._title,
+      retCode: 'js-apply'
     }
 
-    console.log('popup returning cmd:',cmd)
-    parent._post_edit_title(cmd)
+    tp.assert(cmd.name, `Missing name`)
+    tp.assert(cmd.title, `Missing title`)
+
+  console.log('popup returning cmd:',cmd)
+    tp.data.on_exit(cmd)
     return;
 /*
     const parent = tp.data.parent

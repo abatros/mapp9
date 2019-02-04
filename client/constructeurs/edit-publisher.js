@@ -3,7 +3,7 @@ const hash = require('object-hash');
 //const app = require('../app-client.js'); // for lookup to access auteurs
 import reactiveObject, { isSupported } from 'meteor-reactive-object'
 
-import {publishers, app} from '../app-client.js';
+import {publishers, app, _assert} from '../app-client.js';
 
 const TP = Template['edit-publisher'];
 
@@ -19,60 +19,84 @@ TP.onCreated(function(){
   console.log(`onCreated titre:`,this.data.id());
   const tp = this;
 
-  tp.revision = new ReactiveDict(); // this one is driving the UI.
+//  tp.revision = new ReactiveDict(); // this one is driving the UI.
   tp.revision_data = new ReactiveDict(); // this one is driving the UI.
   tp.original = new ReactiveVar();
-  tp.edit_title_data = new ReactiveVar(null);
+  tp.popup_data = new ReactiveVar(null);
+  tp.data.yaml = new ReactiveVar();
 
+  // ----------------------------------------------------------------------
   const find_publisher_byName = async (name)=>{
     const p = await app.find_publisher_byName(name);
     return p;
   }
 
-  tp.post_edit_title = function(o){
+  tp.popup_exit = function(o){
     const {name, title, retCode} = o;
-    console.log(`post_edit_title : `,o)
-    if (retCode == 'apply') {
-      tp.revision.set('title',title);
-      tp.revision.set('name',name);
+    console.log(`popup_exit (callback) : `,o)
+    const original = tp.original.get();
+    console.log(`Original:`, original);
+
+    if (retCode == 'js-apply') {
       tp.revision_data.set('title',title);
+      tp.revision_data.set('name',name);
       console.log(`tp.revision_data:`,tp.revision_data)
+      console.log(`tp.original:`,tp.original.get())
       return;
     }
-    if (retCode == 'quit') {
-      tp.edit_title_data.set(null)
+    if (retCode == 'js-quit') {
+      tp.popup_data.set(null)
       return;
     }
     console.log(`Invalid Return Code (${retCode})`);
   } // post_edit_title.
+  // ----------------------------------------------------------------------
 
   const item_id = this.data.id();
-  Meteor.call('publisher-infos',{
+  Meteor.call('constructeur-infos',{
     item_id,
     checksum: "", // to be used if we have local copy
   },(err, retv)=>{
-    if (err) {
-      console.log('err:',err);
-      return;
-    }
+    if (err) throw err;
+    const constructeur = retv.constructeur;
+    const catalogs = retv.articles;
+    prep_fix(constructeur)
+    tp.data.yaml.set(json2yaml.stringify(constructeur));
+//    constructeur.yml = json2yaml.stringify(constructeur);
 
-console.log('retv:',retv);
+    console.log('constructeur-infos => :',retv);
+    tp.original.set(constructeur);
 
-    retv = reformat(retv);
-    console.log('retv:',retv);
-
-    tp.original.set(retv);
-
-    Object.keys(retv).forEach(k=>{
-      tp.revision.set(k,retv[k]);
+    /*
+        NEED CLONING.
+    */
+    const revision_data = JSON.parse(JSON.stringify(constructeur.data))
+    Object.keys(revision_data).forEach(p=>{
+      tp.revision_data.set(p,revision_data[p]);
     })
-    Object.keys(retv.data).forEach(k=>{
-      tp.revision_data.set(k,retv.data[k]);
-    })
-
   })
 }) // onCreated
 
+function prep_fix(co) {
+  _assert(co, co, 'fatal-216')
+  _assert(co.name, co, 'fatal-219')
+  _assert(co.title, co, 'fatal-220')
+  co.fa_ = [];
+  co.data && co.data.addresses && co.data.addresses.forEach(a=>{
+    const [sa,ci,country] = a.split('<>');
+    co.fa_.push(`${sa?sa:''}${ci?' - '+ci:''}${country?' - '+country:''}`)
+  })
+  co.data.indexNames = co.data.indexNames || co.data.aka;
+}
+
+/*
+function reformat(retv) {
+  retv.data =  retv.data || {};
+  Object.assign(retv.data,{name: retv.name, title: retv.title});
+  retv.yml = json2yaml.stringify(retv);
+  return retv;
+}
+*/
 
 TP.onRendered(function(){
   console.log(`onRendered titre:`,this.item_id);
@@ -80,33 +104,35 @@ TP.onRendered(function(){
 })
 
 TP.helpers({
+  indexNames() {
+    const indexNames = Template.instance().revision_data.get('indexNames');
+    return indexNames && Array.isArray(indexNames) && indexNames.join('\n');
+  },
+  /*
   revision(x) {
     const tp = Template.instance();
-    /*
-    const v = x.split('.');
-    if (v.length ==2) {
-      return tp.revision.get(v[0]) && tp.revision.get(v[0])[v[1]];
-    }
-    */
     return tp.revision.get(x)
-  },
+  }, */
   revision_data(x) {
     const tp = Template.instance();
     return tp.revision_data.get(x)
   },
+  /*
   original() {
     const tp = Template.instance();
     return tp.original.get();
-  },
+  },*/
   find_publisher_byName() {
     const tp = Template.instance();
     return tp.find_publisher_byName
   },
-  edit_title_data() {
+  popup_data() {
     const tp = Template.instance();
-    return tp.edit_title_data.get();
+    return tp.popup_data.get();
   },
 })
+
+
 
 // ===========================================================================
 TP.events({
@@ -144,17 +170,17 @@ TP.events({
 TP.events({
   'click .js-edit-title': (e,tp)=>{
     /*
-        flip-flop {{#if edit_title_data}}...{{/if}}
+        flip-flop {{#if popup_data}}...{{/if}}
     */
-    const x = tp.edit_title_data.get();
+    const x = tp.popup_data.get();
     if (x) {
-      tp.edit_title_data.set(null);
+      tp.popup_data.set(null);
     } else {
-//      tp.edit_title_data.set(tp.revision.get());
-      tp.edit_title_data.set({
-        title: tp.original.get().title,
-        name: tp.original.get().name,
-        _post_edit_title: tp.post_edit_title
+//      tp.popup_data.set(tp.revision.get());
+      tp.popup_data.set({
+        title: tp.revision_data.get('title'),
+        name: tp.revision_data.get('name'),
+        on_exit: tp.popup_exit
       });
     }
   } // js-edit-title
@@ -186,15 +212,47 @@ function deep_cloneObject(obj) {
     return clone;
 }
 
+TP.events({
+  'focusout textarea[name=indexNames]': (e,tp)=>{
+    const indexNames = tp.find('textarea[name=indexNames]').value
+    console.log(`focusout =>`,indexNames)
+    tp.revision_data.set('indexNames',indexNames.split('\n').map(na=>(na.trim())).filter(na=>(na.length>0)))
+  }
+})
 
 TP.events({
-  'click .js-update-publisher': (e,tp)=>{
-    const data = tp.revision_data.all();
-    data.name = undefined;
-    const revision = tp.revision.all();
-    console.log('data:',data)
-    revision.data = data;
-    console.log('revison:',revision)
+  'click .js-commit-update': (e,tp)=>{
+    const original = tp.original.get();
+    const revision_data = tp.revision_data.all();
+    revision_data.xxxxxxxxxxxxxxxxx=undefined;
+    console.log('js-update-publisher revision_data:', revision_data)
+
+    /*
+        check if something has changed.
+        tp.data contains the original.
+    */
+
+    const revision_checksum = hash(revision_data, {algorithm: 'md5', encoding: 'base64' });
+
+    if (revision_checksum == original.checksum) {
+      console.log(`No need for Update : same checksum revision.checksum:`,revision_checksum)
+      console.log(`original:`,original);
+      console.log(`revision_data:`,revision_data);
+      return;
+    }
+
+    /*
+        ATTENTION === From here the original is lost. ===
+    */
+    const revision = Object.assign(original, {
+      jsonb_data: revision_data,
+      title: revision_data.title,
+      name: revision_data.name,
+      checksum: revision_checksum
+    })
+
+    console.log(`Revision:`,revision);
+
 
     const p1 = app.publisher__new_revision(revision);
     p1.then(retv=>{
@@ -208,17 +266,10 @@ TP.events({
 
 // ============================================================================
 
-function reformat(retv) {
-  if (retv.title != retv.data.title) console.log('ALERT title!=data.title fixed.');
-  retv.title = retv.data.title;
-  retv.title = retv.title || retv.name;
-  retv.yml = json2yaml.stringify(retv);
-  return retv;
-}
 
 // ============================================================================
 
-FlowRouter.route('/edit-soc/:id', { name: 'edit-soc',
+FlowRouter.route('/edit-constructeur/:id', { name: 'edit-constructeur',
     action: function(params, queryParams){
         console.log('Router::action for: ', FlowRouter.getRouteName());
         console.log(' --- params:',params);

@@ -1,11 +1,11 @@
 <head>
 <style>
-  #edit-title {
+  #title-popup {
     margin:30px;
     padding:30px;
     background-color:rgba(0,200,0,0.2);
   }
-  #edit-title input {
+  #title-popup input {
     width:100%;
     max-width:800px;
   }
@@ -13,12 +13,17 @@
 </head>
 
 
-<template name='edit_title'>
-  <div id="edit-title">
+<template name='title_popup'>
+  <div id="title-popup">
+    {{#if err_message}}
+    <div style="border:2px solid red; mergin:10px; padding:10px;">
+      {{err_message}}
+    </div>
+    {{/if}}
     <label for="">original</label><br/>
-    <input type="text" name="new-title" value="{{parent.title}}" readonly tabIndex="-1"><br/>
+    <input type="text" name="new-title" value="{{title}}" readonly tabIndex="-1"><br/>
     <label for="">new title</label><br/>
-    <input type="text" name="new-title" value="{{parent.title}}" tabIndex="1" class="js-new-title"><br/>
+    <input type="text" name="new-title" value="{{_title}}" tabIndex="1" class="js-new-title"><br/>
     <label for="">new key</label><br/>
     <input type="text" name="new-name" value="{{uname}}" tabIndex="2"><br/>
     <div>

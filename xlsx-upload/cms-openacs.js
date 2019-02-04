@@ -21,6 +21,16 @@ exports.get_connection = function(){
   return db;
 }
 
+function _assert(b, o, err_message) {
+  if (!b) {
+    console.log(`######[${err_message}]_ASSERT=>`,o);
+    console.trace(`######[${err_message}]_ASSERT`);
+    throw {
+      message: err_message // {message} to be compatible with other exceptions.
+    }
+  }
+}
+
 // ============================================================================
 
 exports.open_cms = async (cmd) =>{
@@ -365,6 +375,7 @@ exports.publisher__new = function (data) {
     }],
     {single:true})
     .then(retv=>{
+      _assert(retv.cms_publisher__new)
       return retv.cms_publisher__new;
     })
 } // cms_publisher__new(o)
@@ -394,19 +405,22 @@ exports.publisher__new_revision = function (o) {
       title: data.title, // goes int cr_revision.
       jsonb_data: data,
       checksum
-    }],
-    {single:true});
+    }],{single:true})
+  .then(retv =>{
+    return retv.cms_publisher__new_revision
+  })
 } // cms_publisher__new(o)
 
 // ============================================================================
 
 exports.publisher__save = function (o) {
 
-  const {item_id, name, title, jsonb_data, checksum} = o;
-  assert(jsonb_data)
+  const {item_id, name, title, checksum} = o;
+
+  const jsonb_data = o.jsonb_data || o.data; // defaults to data.
   //assert(checksum)
   //console.log(jsonb_data); throw 'stop-463'
-  const new_checksum = hash(jsonb_data, {algorithm: 'md5', encoding: 'base64' }) // goes int cr_revision.
+//  const new_checksum = hash(jsonb_data, {algorithm: 'md5', encoding: 'base64' }) // goes int cr_revision.
 
   if (!o.item_id) {
     return db.query('select cms_publisher__new($1)',
@@ -432,7 +446,7 @@ exports.publisher__save = function (o) {
       });
   } else {
     // if (o.force_new_revision) ....
-
+    /*
     if (checksum == new_checksum) {
       if (!o.force_new_revision ) {
         if (verbose)
@@ -442,7 +456,7 @@ exports.publisher__save = function (o) {
           info: 'cms.publisher__save:: No change in checksum - skipping new_revision'
         }
       }
-    }
+    } */
 
 
     //console.log(`[cms.publisher__save] checksum (force:${o.force_new_revision}) [${checksum}]=>[${new_checksum}]`);
@@ -472,12 +486,14 @@ exports.publisher__save = function (o) {
           title, // cr_revision.title
           description,
           jsonb_data,
-          checksum: new_checksum
+          checksum,
 //          parent_id: app_folder_id,
 //          name,
 //          package_id,
-        }],
-        {single:true})
+        }],{single:true})
+      .then(retv =>{
+        return retv.cms_revision__new;
+      })
 /*
       .then(retv =>{
         const o2 = retv.cms_revision__new;

@@ -1,7 +1,14 @@
 import { Meteor } from 'meteor/meteor';
 
 import './methods.js'
-//import './publisher-methods.js'
+import './cms-server.js'
+import './methods/cms-articles-directory.js'
+import './methods/cms-authors-directory.js'
+import './methods/constructeurs-directory.js'
+import './methods/constructeur-infos.js'
+import './methods/catalogs-directory.js'
+import './methods/index-constructeurs.js'
+import './methods/index-s3.js'
 
 /*
 (()=>{

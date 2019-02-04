@@ -2,25 +2,16 @@
   <style>
     .red {color:red;}
     .green {color:green;}
-    #index-auteurs {
-       font-family:times;
-    }
-
-    #index-auteurs b {
-       font-family:times;
-       color: rgb(100,100,100)
-    }
-
-    #index-auteurs span.yp {
+    #index-marques span.yp {
       font-family: helvetica;
-      font-size:10pt;
+      font-size:9pt;
       font-weight:bold;
     }
   </style>
 </head>
 
-<template name="index-auteurs">
-<div id="index-auteurs">
+<template name="index-marques">
+<div id="index-marques">
   <div style="border:0px solid black; margin:5px; padding:2px;">
     [ <a href="/titres-directory">titres</a> ]
     [ <a href="/auteurs-directory">auteurs</a> ]
@@ -32,6 +23,7 @@
     &lt;au&gt;
     {{/if}}
   </div>
+
   <div style="border:0px solid black; margin:5px; padding:2px;">
     [ <a href="/index-a">Auteurs</a> ]
     [ <a href="/index-c">Constructeurs</a> ]
@@ -42,18 +34,16 @@
   <div style="border:0px solid black; margin:5px; padding:2px;">
     <input type="text" id="find-auteurs-input" style="height:20px; width:100%;">
   </div>
-  {{#each au in auteurs}}
+  {{#each it in marques}}
   <div>
-    <div style="margin:5px 0 0 0; border-bottom:3px solid rgb(230,230,230);padding:0 0 10px 0;">
-      <b>Auteur(s) : </b>
-      <a href="/auteur/{{au.auteurName}}">{{{au.auteurName}}}</a>
-
+    <div style="margin:5px 0 0 0; border-bottom:3px solid rgb(230,230,230);padding:0 0 10px 0;font-family:times;">
+      <b>Marque :</b><br>
+      <a href="/auteur/{{au.auteurName}}">{{{it.marque}}}</a><br>
       <div style="margin:5px 0 0 20px;">
-        {{#each title in au.titres}}
+        <b>Citee dans le(s) documents suivant(s)</b>
+        {{#each title in it.titres}}
           <div style="margin:4px 0 0 0px;">
-            <b>Titre du (des) document(s) :</b><br>
-            <span class="yp">({{title.yp}})</span> &ndash; {{title.title}}
-
+            <span class="yp">({{title.yp}})</span> {{title.title}}
             <span style="font-size:9pt;">[{{title.xid}}]
               {{#if title.restricted}}
               <span class="red">Restricted</span>{{/if}}
@@ -68,11 +58,10 @@
               &rarr; Document  sous droits d'auteur, non communicable.
             </div>
             {{else}}
-            <div style="margin:4pt 0 0 0px;">
-              <b>Lien(s) vers article(s) :</b>
+            <div style="margin:0 0 0 0px;">
               {{#each pdf in title.links}}
               <div>
-                &rarr; <a href="{{pdf.fn}}">{{pdf.fn2}}</a>
+                &rarr; <a href="{{pdf.fn}}">{{pdf.fn2}}</a> (pdf)
               </div>
               {{/each}}
             </div>

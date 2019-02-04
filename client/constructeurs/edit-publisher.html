@@ -20,12 +20,12 @@
   <div style="border:0px solid black; margin:5px; padding:2px;">
     [ <a href="/titres-directory">titres</a> ]
     [ <a href="/auteurs-directory">auteurs</a> ]
-    [ <a href="/soc-directory">societes</a> ]
+    [ <a href="/constructeurs-directory">constructeurs</a> ]
     &mdash;
     [ <a href="/produits-directory">produits</a> ]
     [ <a href="/produits-directory">xref</a> ]
     &mdash;
-    [ <a href="#" class="js-update-publisher">save</a> ]
+    [ <a href="#" class="js-commit-update">save</a> ]
     [ <a href="#" class="js-revisions">revision history</a> ]
     {{#if session ''}}
     {{else}}
@@ -33,26 +33,38 @@
     {{/if}}
   </div>
 
+  {{#if error}}
+  <div style="border:2px solid red;margin:10px; padding:10px;">
+    {{error}}
+  </div>
+  {{/if}}
+
   <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
     <input type="text" id="find-publisher-input" style="height:20px; width:100%;">
   </div>
 
-  <h3>Titre : <span style="color:blue;">{{revision 'title'}}</span></h3>
+  <div style="margin:20px 0 0 0;">
+    <label>Titre : </label> <span style="color:blue;">{{revision_data 'title'}}</span>
+    [ <a href="#" class="js-edit-title">edit-title</a> ]
+  </div>
 
-  {{#if edit_title_data}}
-  {{> edit_title parent=edit_title_data}}
+  {{#if popup_data}}
+  {{> title_popup popup_data}}
   {{/if}}
 
-  <div>
-    <label for="H">Index entries</label><br/>
-    <textarea name="acronyms"
-      cols="80" rows="5">{{revision_data 'index-name'}}</textarea>
+  <div style="margin:20px 0 0 0;">
+    <label for="H">Acronymes</label><br/>
+    <textarea name="indexNames"
+      cols="80" rows="5">{{indexNames}}</textarea>
   </div>
 
 
   <h4>raw data (origin)</h4>
   <pre style="background-color:rgb(0,0,0,0.1);">
 {{original.yml}}
+  </pre>
+  <pre style="background-color:rgb(0,0,0,0.1);">
+{{yaml.get}}
   </pre>
 
 

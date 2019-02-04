@@ -124,10 +124,7 @@ module.exports= (json)=>{
 
     // A: xid
     it.xid = +(it.xid);
-    if ((it.xid<0)||(it.xid>9000)) {
-      console.log('it:',it)
-      throw 'fatal-118'
-    }
+    _assert((it.xid>=3000)||(it.xid<9999), it, `fatal-127. out-of-range xid:${it.xid}`)
 
     // B: sec
     it.sec = +((it.sec + '').trim());
@@ -157,13 +154,12 @@ module.exports= (json)=>{
     it.co = iso_cc[it.co]
 
     // G: h1
-    if (!it.h1) { // The Original NAME - not suitable for sort.
-      console.log(`-- Missing SOC/AUTHOR line-${ix+2} xid:${it.xid}`);
+    it.h1 = it.h1.trim();
+    if (!it.h1 || (it.h1.length <=0)) { // The Original NAME - not suitable for sort.
+      console.log(`-- Missing constructeur/AUTHOR line-${ix+2} xid:${it.xid}`);
       err_Count ++;
       it.h1 = '*dkz::Unknown-soc/author*'
       throw 'fatal-128'
-    } else {
-      it.h1 =it.h1.trim();
     }
 
     // H: isoc
@@ -172,10 +168,11 @@ module.exports= (json)=>{
       // specific to mapp9 => fake publisher.
       const {auteurs, titres} = isoc3(it.isoc)
       it.auteurs = auteurs;
-      it.titres = titres;
-      assert(Array.isArray(it.auteurs));
-      assert(Array.isArray(it.titres));
-      it.isoc = undefined;
+      it.indexNames = titres;
+      _assert(Array.isArray(it.auteurs));
+//      _assert(Array.isArray(it.titres) && (it.titres.length>0), it, 'fatal-177. Missing titres.');
+      _assert(Array.isArray(it.indexNames), it, 'fatal-177. Missing titres.');
+      // it.isoc = undefined;  keep it for debug.
     } else { // Catalog from Constructeurs. (publisher)
       /*
           h1: Article Original name is found in h1.
@@ -183,27 +180,20 @@ module.exports= (json)=>{
           isoc => aka : are the positions for this constructeur in the Index.
           option: h1 := aka[0] to fix wrong spellings.
       */
-      const v = it.isoc.split('|').map(it=>it.trim());
-      it.aka = [].concat(v);
-      assert(Array.isArray(it.aka))
+      it.indexNames = [].concat(it.isoc.split('|').map(it=>it.trim()).filter(it=>(it.length>0)))
+      _assert(it.indexNames.length>0, it, 'fatal-187. Missing indexNames') // or it will never be seen in index.
       it.isoc = undefined;
 
-      if (true) {
+      if (false) {
         /*
             TO FIX wrong spelling in H1.
             Note 1: isoc are entries in index.
             Note 2: h1 is legalName
         */
-        it.h1 = it.aka[0]; // constructeur legalName
+        it.h1 = it.indexNames[0]; // constructeur legalName
       }
-      /*
-      const v2 = it.isoc.splice(0,1);
-      Object.assign(it, {
-        legalName:v2[0],
-        aka: it.isoc       // acronyms.
-      });
-      */
-    }
+
+    } // catalogs-constructeurs
 
     // I: h2 - keywords, products
     if (it.h2)
@@ -278,6 +268,17 @@ module.exports= (json)=>{
     it.flags = undefined
     it.npages = undefined;
 //    if (+it.sec !=3) assert(Array.isArray(it.isoc))
-    assert(it.isoc == undefined)
+    //assert(it.isoc == undefined)
   } // loop
+}
+
+
+function _assert(b, o, err_message) {
+  if (!b) {
+    console.log(`######[reformat.js][${err_message}]_ASSERT=>`,o);
+    console.trace(`######[reformat.js][${err_message}]_ASSERT`);
+    throw {
+      message: err_message // {message} to be compatible with other exceptions.
+    }
+  }
 }

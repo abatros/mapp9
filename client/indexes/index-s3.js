@@ -1,23 +1,22 @@
 const assert = require('assert')
-import {constructeurs, app} from '../app-client.js';
+import {app, _assert} from '../app-client.js';
 //import {auteurs, auteurs_array} from '../app-client.js';
-const TP = Template['index-constructeurs'];
 
+const TP = Template['index-s3'];
 
 
 TP.onCreated(function(){
-  console.log(`onCreated index-constructeurs:${Object.keys(constructeurs).length}`);
+//  console.log(`onCreated index-s3:${Object.keys(publishers).length}`);
   this.index = new ReactiveVar();
   const _index = this.index;
 
-  Meteor.call('index-constructeurs',(err,data)=>{
+  Meteor.call('index-s3',(err,data)=>{
     if (err) throw err;
     if (data.error) {
-      console.log(`ALERT index-constructeurs:`,data);
+      console.log(`index-s3:`,data);
       return;
     }
-    console.log(`index-constructeurs receiving data:`,data)
-    console.log(`index-constructeurs receiving ${data.length} rows`)
+    console.log(`index-s3 receiving ${data.length} rows`)
     /*
         Here we receive 1 record for each article-catalog.
         Inverted index is done on the client.
@@ -25,32 +24,24 @@ TP.onCreated(function(){
         then add the acronyms.
     */
 
-    data.forEach(a1 =>{ // Catalogs ( from Construteurs)
-      _assert(a1.indexNames, a1, 'fatal-28. Missing indexNames.')
-      a1.indexNames = a1.indexNames.map(ti=>(ti.trim())).filter(ti=>(ti.length>0)); // FIX.
-      if (!a1.links || a1.links.length<1) {
-//        a1.links.push({fn2:"TRANSCRIPTION"})
-      } else {
-        a1.links.forEach((pdf)=>{
-          pdf.fn2 = pdf.fn
-          .replace(/^[0-9\s]*\s*/,'') // remove 'ca' !!!!
-          .replace(/[\s\-]*[0-9]+$/,'');
-        })
-      }
-    }) // each cc.
+//    data.forEach(a1 =>{ // article
+//    }) // each article
 
-    const xi = XI(data); // list (Array) of constructeurs, with catalogs.
-    _index.set(xi)
-    console.log(xi)
+    console.log(`index-s3 after cleanup ${data.length} rows`)
+    const y = XI(data); // an array with all aternate titles.
+    console.log(`index-s3 after XIs ${y.length} rows`)
+
+    _index.set(y)
+    console.log(y)
   });
 })
 
 TP.onRendered(function(){
-  console.log(`onRendered index-constructeurs:${Object.keys(constructeurs).length}`);
+//  console.log(`onRendered index-s3:${Object.keys(publishers).length}`);
 })
 
 TP.helpers({
-  constructeurs() { // is an array.
+  index() { // is an array.
     const tp = Template.instance();
     return tp.index.get();
   }
@@ -164,42 +155,57 @@ TP.events({
 
 // ===========================================================================
 
-/*
-
-        xi: a list of constructeurs.
-        For each constructeur, all articles/catalogs ordered by yp.
-
-*/
-
 function XI(articles) {
-  const xi = {} // Inverted Index -- for constructor legalName (indexName) and all acronyms => list of catalogs.
+  const xi = []; // NOT a hash - we accept collisions.
+  // we add an entry for each titre (and alternate inames).
+
   let mCount = 0;
 
   for (const j in articles) {
     const article = articles[j];
-    const {item_id, xid, yp, name, title, links, transcription, restricted, indexNames} = article;
+    const {item_id, xid, yp, name, title ='*missing*', links=[], transcription, restricted, inames=[], auteurs=[]} = article;
 
-    _assert((indexNames && indexNames.length>0), article, 'fatal-195. missing indexNames');
+    links.forEach((pdf)=>{
+      pdf.fn2 = pdf.fn
+      .replace(/^[0-9\s]*\s*/,'') // remove 'ca' !!!!
+      .replace(/[\s\-]*[0-9]+$/,'');
+    })
 
-    indexNames.forEach((cname, ia)=>{
-      if (cname.length<1) throw `fatal-65`;
-      if (cname.trim().length<1) throw `fatal-66`;
-      xi[cname] = xi[cname] || {
-        indexName: cname, // constructeur
-        voir_legalName: ((cname != indexNames[0])? indexNames[0] : null),
-        articles:[]
+    const indexNames = inames.map(ti=>(ti.trim())).filter(ti=>(ti.length>0)); // FIX.
+    if (indexNames.length <1) {
+      notice(`j:${j} titre:${JSON.stringify(article)}`);
+      mCount++;
+      notice (`index-s3 =>fatal article without titre xid:${xid} ${mCount}/${j}`);
+      if (false) {
+        continue;
       }
-      xi[cname].articles.push({
-//  	    item_id, should be revision
-        title,    // first of indexNames for article.title
-        xid,      // debug
+    }
+    _assert(indexNames, article, 'fatal-183. Missing inames')
+    //notice(JSON.stringify(titre.aka));
+
+    /*
+        if titre is not the first one, create originalName.
+    */
+
+    /*
+    if (inames.length>1) {
+      console.log(`inames:`,inames);
+    }*/
+
+    indexNames.forEach((iName, jj)=>{
+      xi.push ({
+//  	    item_id,
+        iName,
+        titre_origine: (jj>0)? inames[0] : null,
+        xid,
         yp,
-        name,
+//        name,
         links,
+        auteurs,
         transcription,
         restricted
-      })
-    }); // each aka
+      });
+    }); // each titre
   }; // each article.
 
   /*
@@ -208,43 +214,25 @@ function XI(articles) {
       articles: xi[name].cats		// list of catalogs.
   }));
   */
-//  return xi; // we might need that hash-table, instead of an array.
+  //return xi; // we might need that hash-table, instead of an array.
 
-  /*
-  const y = Object.values(xi).map(ccName => ({
-      ccName,			// constructeur-name
-      legalName: xi[ccName].legalName,
-      aka: xi[ccName].aka,
-      articles: xi[ccName].cats		// list of catalogs.
-  }));
-  */
-
-  return Object.values(xi)
-  .sort((a,b)=>{
-    return a.indexName.localeCompare(b.indexName)
+  xi.sort((a,b)=>{
+    //console.log(`--${a.auteurName}`)
+    return a.iName.localeCompare(b.iName)
   });
 
-
-}
-
-// ---------------------------------------------------------------------------
-
-function _assert(b, o, err_message) {
-  if (!b) {
-    console.log(`######[${err_message}]_ASSERT=>`,o);
-    console.trace(`######[${err_message}]_ASSERT`);
-    throw err_message
-  }
+console.log('EXit XI:',xi)
+  return xi; // an array
 }
 
 // ============================================================================
 
-FlowRouter.route('/index-c', { //name: 'auteurs_directory',
+FlowRouter.route('/index-s3', { //name: 'auteurs_directory',
     action: function(params, queryParams){
         console.log('Router::action for: ', FlowRouter.getRouteName());
         console.log(' --- params:',params);
 //        document.auteur = "Museum v9";
 //        app.article_id.set(undefined);
-        BlazeLayout.render('index-constructeurs');
+        BlazeLayout.render('index-s3');
     }
 });

@@ -1,0 +1,54 @@
+<head>
+  <style>
+  #constructeurs-directory a {
+    text-decoration:none;
+  }
+  #constructeurs-directory div.entry {
+    __display:table-row;
+    font-size:10pt;
+    font-weight: bold;
+    line-height:14pt;
+  }
+  #constructeurs-directory span {
+    font-size:10pt;
+  }
+  #constructeurs-directory a.legalName {
+    font-size:10pt;
+    font-weight: 500;
+    color:black;
+  }
+  </style>
+</head>
+
+<template name="constructeurs-directory">
+<div id="constructeurs-directory">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/constructeurs-directory">constructeurs</a> ]
+    &mdash;
+    [ <a href="/new-soc">new Constructeur</a> ]
+    [ <a href="/new-soc">new Editeur</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    <input type="text" id="find-authors-input" style="height:20px; width:100%;">
+  </div>
+  <div display:table>
+  {{#each it in iNames}}
+    <div class="entry">
+      <a href="#" class="js-constructeur" item_id="{{it.item_id}}"
+          title="constructeur:{{it.item_id}}"
+      >{{it.iName}}</a>
+
+      {{#if it.legalName}}
+      <span>&rarr;
+        <a class="legalName" href="/constructeur/{{it.constructeur.item_id}}-{{it.legalName}}">
+          {{it.legalName}}
+        </a></span>
+      {{/if}}
+    </div>
+  {{/each}}
+  </div>
+</div>
+</template>

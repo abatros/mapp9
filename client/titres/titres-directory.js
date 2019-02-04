@@ -1,5 +1,6 @@
 const assert = require('assert');
-const app = require('../app-client.js');
+//const app = require('../app-client.js');
+import {app, _assert} from '../app-client.js';
 
 const TP = Template['titres-directory'];
 
@@ -27,10 +28,8 @@ TP.helpers({
 //    return v.sort((a,b)=>(a.name.localeCompare(b.name)));
     v.forEach(ti=>{
       ti.display_type = (ti.hidden)? 'none':'table-row';
-      if (!Array.isArray(ti.h2)) {
-        console.log(ti);
-        throw 'fatal-33'
-      }
+      ti.h2 = ti.h2 || [];
+      _assert(Array.isArray(ti.h2), ti, `fatal-33 h2 is not an Array`)
     });
     return v;
   }
@@ -143,7 +142,7 @@ function RemoveAccents(strAccents) {
 Meteor.startup(() => {
   console.log('startup getting titres...');
   const etime = new Date().getTime();
-  Meteor.call('cms-articles-directory', (err,data)=>{
+  Meteor.call('catalogs-directory', (err,data)=>{
     if (err) {
       console.log('err:',err)
       throw 'fatal-146'

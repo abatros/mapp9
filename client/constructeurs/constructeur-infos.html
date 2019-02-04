@@ -1,0 +1,76 @@
+<head>
+  <style>
+    #constructeur-infos span.product {
+      font-size:12pt; font-family: times;
+      font-style:italic;
+    }
+    #constructeur-infos span.yp {
+      font-size:10pt;
+      font-weight:bold;
+    }
+    #constructeur-infos a.cc {
+      font-size:11pt;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<template name="constructeur-infos">
+<div id="constructeur-infos">
+  <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/titres-directory">titres</a> ]
+    [ <a href="/auteurs-directory">auteurs</a> ]
+    [ <a href="/constructeurs-directory">constructeurs</a> ]
+    &mdash;
+    [ <a href="/edit-constructeur/{{soc.item_id}}">edit</a> ]
+    [ <a href="/edit-constructeur-title/{{soc.item_id}}">edit-title</a> ]
+  </div>
+
+  <div style="border:0px solid black; margin:5px; padding:2px; display:none;">
+    <input type="text" id="find-soc-input" style="height:20px; width:100%;">
+  </div>
+
+  <h3><span style="color:blue;">{{soc.title}}</span></h3>
+
+  <h4>products:</h4>
+  {{#each p in soc.data.products}}
+  <div>
+    -- {{p}}
+  </div>
+  {{/each}}
+
+  <h4>adresse(s):</h4>
+  {{#each a in soc.data.fa_}}
+  <div>
+  {{a}}
+  </div>
+  {{/each}}
+
+  <h4>Catalogues Constructeur</h4>
+  {{#each cc in catalogs}}
+  <div>
+    &ndash;
+    <span class="yp">{{cc.data.yp}}</span>
+    &ensp;
+    <a class="cc" href="/catalog/{{cc.item_id}}-{{fix cc.title}}" item_id="{{cc.item_id}}" title="catalog:{{cc.item_id}}">{{cc.title}}</a>
+    {{#each h2 in cc.data.h2}}
+      <span class="product">&ensp;- {{h2}}</span>
+    {{/each}}
+  </div>
+  {{/each}}
+
+
+  <h4>raw data</h4>
+  <pre style="background-color:rgba(90,90,90,0.2);">
+  {{soc.yml}}
+  </pre>
+
+  {{#each cc in catalogs}}
+  <pre style="background-color:rgba(90,90,90,0.2);">
+    {{cc.yml}}
+  </pre>
+  {{/each}}
+
+
+</div>
+</template>

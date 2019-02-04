@@ -1,23 +1,28 @@
 const json2yaml = require('json2yaml');
 
-const TP = Template['soc-infos'];
+const TP = Template['constructeur-infos'];
 
 TP.onCreated(function(){
   console.log(`onCreated soc:`,this.data.id());
   const ti = this;
   ti.soc = new ReactiveVar();
+  ti.catalogs = new ReactiveVar();
 
   ti.item_id = this.data.item_id = this.data.id().split(/\-/)[0];
 
-  Meteor.call('soc-infos',{
+  Meteor.call('constructeur-infos',{
     item_id:ti.item_id,
     checksum: "", // to be used if we have local copy
-  },(err, soc)=>{
-    console.log('err:',err);
-    console.log('soc:',soc);
-    prep(soc);
-    console.log('after prep soc:',soc);
-    ti.soc.set(soc);
+  },(err, retv)=>{
+    if (err) throw err;
+    console.log('retv:',retv);
+    prep_fix(retv.constructeur);
+    console.log('after prep retv.constructeur:',retv.constructeur);
+    ti.soc.set(retv.constructeur);
+    ti.catalogs.set(retv.articles);
+    retv.articles.forEach(cc=>{
+      cc.yml = json2yaml.stringify(cc);
+    })
   })
 })
 
@@ -30,24 +35,31 @@ TP.helpers({
   soc() {
     const a = Template.instance().soc.get();
     return a;
+  },
+  catalogs() {
+    return Template.instance().catalogs.get();
+  },
+  fix(x) {
+    return x.replace(/\s+/g,'-');
   }
 })
 
 
 // ============================================================================
 
-function prep(soc) {
+function prep_fix(soc) {
   soc.yml = json2yaml.stringify(soc);
   soc.fa_ = [];
-  soc.data.addresses && soc.data.addresses.forEach(a=>{
+  soc.data && soc.data.addresses && soc.data.addresses.forEach(a=>{
     const [sa,ci,co] = a.split('<>');
     soc.fa_.push(`${sa?sa:''}${ci?' - '+ci:''}${co?' - '+co:''}`)
   })
+  soc.data.indexNames = soc.data.indexNames || soc.data.aka;
 }
 
 // ============================================================================
 
-FlowRouter.route('/soc/:id', { name: 'soc-infos',
+FlowRouter.route('/constructeur/:id', { name: 'constructeur-infos',
     action: function(params, queryParams){
         console.log('Router::action for: ', FlowRouter.getRouteName());
         console.log(' --- params:',params);
@@ -60,7 +72,7 @@ FlowRouter.route('/soc/:id', { name: 'soc-infos',
         app.soc_id.set(params.id);
         app.show_soc(params.id);
 */
-        BlazeLayout.render('soc-infos', {id:params.id});
+        BlazeLayout.render('constructeur-infos', {id:params.id});
         // render template will get soc from DB.
     }
 });

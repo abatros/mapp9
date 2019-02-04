@@ -1,11 +1,23 @@
+<head>
+  <style>
+    #titre-infos a {
+      text-decoration: none;
+    }
+    #titre-infos label {
+      font-size:11pt;
+      font-weight: bold;
+      color: rgb(80,80,80);
+    }
+  </style>
+</head>
 <template name="titre-infos">
-<div>
+<div id="titre-infos">
   <div style="border:0px solid black; margin:5px; padding:2px;">
     [ <a href="{{pathFor '/td'}}">back</a> ]
     &mdash;
     [ <a href="/titres-directory">titres</a> ]
     [ <a href="/auteurs-directory">auteurs</a> ]
-    [ <a href="/soc-directory">societes</a> ]
+    [ <a href="/constructeurs-directory">constructeurs</a> ]
     &mdash;
     [ <a href="/edit-titre/{{article.item_id}}">edit</a> ]
     [ <a href="/delete-titre/{{article.item_id}}">delete</a> ]
@@ -15,7 +27,7 @@
     <input type="text" id="find-authors-input" style="height:20px; width:100%;">
   </div>
 
-  <h3><span style="color:blue;">{{article.title}}</span></h3>
+  <h3 style="text-align:center; min-width:500pt;"><span style="color:blue; background-color:rgb(240,240,240); padding:8px 14px;">{{article.title}}</span></h3>
 
   {{#if article.data.isoc}}
   <h5> AKA:
@@ -25,14 +37,17 @@
   </h5>
   {{/if}}
 
+  <div style="margin:10px 0 20px 0;">
+    <label>constructeur : </label> <a href="/constructeur/{{article.parent_id}}-{{article.publisher_title}}">{{article.publisher_title}}</a>
+  </div>
 
   {{#if article.data.h2}}
-  <h5> Produits:</h5>
-  <h5>
+  <div style="margin:10px 0 20px 0;">
+  <label> Produits:</label>
   {{#each produit in article.data.h2}}
   <span style="background-color:rgb(245,245,245); border: 1px solid rgb(230,230,230); padding:3px 6px;">{{produit}}</span>
   {{/each}}
-  </h5>
+  </div>
   {{/if}}
 
 

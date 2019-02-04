@@ -10,14 +10,16 @@ import './auteurs/auteur-infos.js';
 import './auteurs/auteur-new.html';
 import './auteurs/auteur-new.js';
 
-import './soc/soc-directory.html';
-import './soc/soc-directory.js';
-import './soc/soc-infos.html';
-import './soc/soc-infos.js';
-import './soc/new-publisher.html';
-import './soc/new-publisher.js';
-import './soc/edit-publisher.html';
-import './soc/edit-publisher.js';
+import './constructeurs/constructeurs-directory.html';
+import './constructeurs/constructeurs-directory.js';
+import './constructeurs/constructeur-infos.html';
+import './constructeurs/constructeur-infos.js';
+import './constructeurs/new-publisher.html';
+import './constructeurs/new-publisher.js';
+import './constructeurs/edit-publisher.html';
+import './constructeurs/edit-publisher.js';
+import './constructeurs/title-popup.html'
+import './constructeurs/title-popup.js'
 
 import './titres/titres-directory.html';
 import './titres/titres-directory.js';
@@ -27,6 +29,9 @@ import './titres/new-titre.html';
 import './titres/new-titre.js';
 import './titres/edit-titre.html';
 import './titres/edit-titre.js';
+
+import './admin/admin.js';
+import './admin/admin.html';
 
 import './indexes/index-auteurs.html';
 import './indexes/index-auteurs.js';
@@ -41,8 +46,6 @@ import './indexes/index-s3.html';
 import './indexes/index-s3.js';
 
 import './app-client.js'
-import './popup-edit-title.html'
-import './popup-edit-title.js'
 
 //import './router.js'
 assert = require('assert');

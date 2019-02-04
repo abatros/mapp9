@@ -33,7 +33,7 @@
   <div style="border:0px solid black; margin:5px; padding:2px;">
     [ <a href="/titres-directory">titres</a> ]
     [ <a href="/auteurs-directory">auteurs</a> ]
-    [ <a href="/soc-directory">societes</a> ]
+    [ <a href="/constructeurs-directory">constructeurs</a> ]
     &mdash;
     [ <a href="/new-auteur">new-author</a> ]
     [ <a href="#" class="js-save-selection">save-selection</a> ]
@@ -43,17 +43,25 @@
   </div>
 
   <div style="border:0px solid black; margin:5px; padding:2px;">
+    [ <a href="/index-a">Auteurs</a> ]
+    [ <a href="/index-c">Constructeurs</a> ]
+    [ <a href="/index-m">Marques</a> ]
+    [ <a href="/index-s3">S3</a> ]
+  </div>
+
+
+  <div style="border:0px solid black; margin:5px; padding:2px;">
     <input type="text" id="find-auteurs-input" style="height:20px; width:100%;">
   </div>
   {{#each cc in constructeurs}}
   <div>
     <div style="margin:5px 0 0 0; border-bottom:3px solid rgb(230,230,230);padding:0 0 10px 0;">
-      <b>Construteur {{cc.sec}}:</b>
-      <a href="/constructeur/{{cc.ccName}}">{{{cc.ccName}}}</a>
+      <b>Construteur :</b>
+      <a href="/constructeur/{{cc.ccName}}">{{{cc.indexName}}}</a>
       <div style="margin:5px 0 0 20px;">
-        {{#if cc.legalName}}
+        {{#if cc.voir_legalName}}
         <div style="margin:3px 0 0 0;">
-          <b>Voir</b> : {{cc.legalName}}
+          <b>Voir</b> : {{cc.voir_legalName}}
         </div>
         {{else}}
         {{#if cc.aka}}

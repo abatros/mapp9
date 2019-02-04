@@ -9,12 +9,16 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^6.2.0",
+    "find": "^0.2.9",
+    "fs-extra": "^7.0.1",
+    "hasha": "^3.0.0",
     "js-yaml": "^3.12.0",
     "json2csv": "^4.3.1",
     "json2yaml": "^1.1.0",
     "jsonfile": "^5.0.0",
     "massive": "^5.7.0",
     "object-hash": "^1.3.1",
+    "pdfjs-dist": "^2.0.943",
     "tiny-trie": "^0.2.6",
     "xlsx": "^0.14.1",
     "yargs": "^12.0.4"
