@@ -342,6 +342,30 @@ exports.article__delete = function(item_id) {
   })
 }
 
+// ============================================================================
+
+exports.drop_publisher = function(cmd) {
+  _assert (cmd.item_id, cmd, 'fatal-348 : Missing item_id')
+  const {item_id} = cmd;
+
+  return db.query(`
+    delete from acs_objects o
+    using cr_items as i
+    where (o.object_id = item_id)
+    and o.package_id = $(package_id)
+    and o.object_type = 'cms-publisher'
+    and i.parent_id = $(app_folder_id)
+    and i.item_id = $(item_id)
+    ;
+    `,{package_id, app_folder_id, item_id})
+  .then(retv =>{
+    console.log('retv:',retv)
+    return retv;
+  })
+  .catch(err=>{
+    return {error:err.mesage}
+  })
+}
 
 // ============================================================================
 
@@ -362,7 +386,7 @@ exports.publisher__new = function (data) {
 
 
 //    return db.query('select content_item__new($1) as data',
-  return db.query('select cms_publisher__new($1)',
+  return db.query('select * from cms_publisher__new($1)',
     [{
       parent_id: app_folder_id,
       name: data.name,
@@ -420,9 +444,10 @@ exports.publisher__save = function (o) {
   const jsonb_data = o.jsonb_data || o.data; // defaults to data.
   //assert(checksum)
   //console.log(jsonb_data); throw 'stop-463'
-//  const new_checksum = hash(jsonb_data, {algorithm: 'md5', encoding: 'base64' }) // goes int cr_revision.
+  const new_checksum = hash(jsonb_data, {algorithm: 'md5', encoding: 'base64' }) // goes int cr_revision.
 
   if (!o.item_id) {
+    // it's a new publisher.
     return db.query('select cms_publisher__new($1)',
       [{
         parent_id: app_folder_id,
@@ -433,14 +458,16 @@ exports.publisher__save = function (o) {
         title,
         jsonb_data, // will be redirected into cr_revision.data
         checksum: new_checksum
-      }],
-      {single:true})
-      .then(retv =>{
-        return {
-          revision_id: retv.cms_publisher__new
-        }
+      }],{single:true})
+      .then(retv2 =>{
+        const retv = retv2.cms_publisher__new[0].cms_publisher__new_; // MESSY
+        console.log(`[cms-openacs]publisher__save retv:`,retv)
+        _assert(retv.item_id, retv, 'fatal-465 Missing item_id')
+        _assert(retv.revision_id, retv, 'fatal-466 Missing revision_id')
+        return retv;
       })
       .catch(err =>{
+        console.log(`ALERT CRASH err:`,err)
         o.error = [err.message,'cms_publisher__new'];
         return o;
       });
@@ -535,7 +562,7 @@ exports.article__save = async function (o) {
         description,
         title,
         jsonb_data: data, // will be redirected into cr_revision.data
-        checksum: new_checksum
+        checksum
       }],
       {single:true})
       .then(retv =>{
@@ -595,7 +622,7 @@ exports.article__save = async function (o) {
         }],
         {single:true});
 
-      console.log('retv.cms_revision__new');
+//      console.log('retv.cms_revision__new');
 
      return retv.cms_revision__new;
 /*
@@ -741,6 +768,32 @@ exports.articles__directory = async function() {
   return retv;
 }
 
+// ============================================================================
+
+exports.catalogs__directory = async function() {
+  const retv= await db.query(`
+    select *
+    from cms_articles__directory
+    where package_id = $1
+    and (data->>'sec' != '3')
+    ;`, [package_id]);
+
+  console.log('cms.catalogs_directory length:', retv.length)
+  return retv;
+}
+
+// ============================================================================
+
+exports.pdf__directory = async function() {
+  const retv= await db.query(`
+    select *
+    from cms_pdf__directory
+    where package_id = $1
+    ;`, [package_id]);
+
+  console.log('cms.pdf__directory length:', retv.length)
+  return retv;
+}
 // ============================================================================
 
 exports.index_auteurs_titres_pdf = function(){

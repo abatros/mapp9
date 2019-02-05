@@ -1,35 +1,5 @@
 #!/usr/bin/env node
 
-/*
-(()=>{
-  const retv = require('dotenv').config()
-  if (retv.error) {
-    throw retv.error;
-  }
-})();
-*/
-
-/*
----
-  host: localhost
-  port: 5432
-  database: cms-oacs
-  user: postgres
-  password: xxxxxxxxxx
-  pg_monitor: false
-  app_instance: 'cms-236393'
-
-
---- THIS IS OBSOLETE
-    DB_HOST: inhelium.com
-    DB_PORT: 5433
-    DB_NAME: cms-openacs
-    DB_USER: postgres
-    DB_PASS: xxxxxxxxxxxxxxxxx
-    DB_MONITOR: true
-
-*/
-
 var XLSX = require('xlsx'); // npm install xlsx
 var jsonfile = require('jsonfile');
 var fs = require('fs');
@@ -43,6 +13,8 @@ const hash = require('object-hash');
 const utils = require('./dkz-lib.js');
 const yaml = require('js-yaml');
 const _ = require('lodash')
+const cms = require('./cms-openacs.js');
+
 const argv = require('yargs')
   .alias('v','verbose')
   .count('verbose')
@@ -61,6 +33,8 @@ const argv = require('yargs')
     'force-new-revision': {default:false}
   })
   .argv;
+
+
 
 const force_new_revision = argv['force-new-revision'];
 const verbose = argv.verbose;
@@ -95,13 +69,6 @@ var yaml_env;
 */
 
 if (pg_monitor != undefined) yaml_env.pg_monitor = pg_monitor;
-
-//process.exit(-1);
-
-  //let jpeg_folder = argv.jpeg_folder|| './jpeg-1895';
-const jpeg_folder = argv.jpeg_folder|| '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www';
-  //var pdf_folder = argv.pdf_folder || './pdf-1946';
-const pdf_folder = argv.pdf_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www';
 
 var input_fn = argv._[0] || `./20190128-full.xlsx`;
 if (!input_fn) {
@@ -200,24 +167,10 @@ console.log("=============================================")
 
 // ##########################################################################
 /*
-            CHECK PDF AND JPEG
-*/
-// ##########################################################################
-
-
-const pdf = jsonfile.readFileSync('scanp3-pdf/index.json');
-console.log(`pdf-directory:${Object.keys(pdf).length}`)
-check_missing_pdf(json,pdf);
-const jpeg = jsonfile.readFileSync('scanp3-jpeg/index.json');
-console.log(`jpeg-directory:${Object.keys(jpeg).length}`)
-
-// ##########################################################################
-/*
             FROM HERE WE RUN ASYNC.
 */
 // ##########################################################################
 
-const cms = require('./cms-openacs.js');
 //const {db, package_id, main_folder, auteurs_folder, publishers_folder} = app_metadata();
 
 //var db;
@@ -235,15 +188,33 @@ cms.open_cms({
   pg_monitor: !!argv['pg-monitor']
 })*/
 
-cms.open_cms(yaml_env)
+
+const db_conn = {
+  host: argv.host || process.env.PGHOST || yaml_env.host,
+  port: argv.port || process.env.PGPORT || yaml_env.port,
+  database: argv.database || process.env.PGDATABASE || yaml_env.database,
+  user: argv.user || process.env.PGUSER || yaml_env.user,
+  password: argv.password || process.env.PGPASSWORD,
+  pg_monitor: argv.pg_monitor || yaml_env.pg_monitor,
+  app_instance: argv.app_instance || yaml_env.app_instance
+}
+
+if (!db_conn.password) {
+  console.log(`MISSING or invalid password in:`,db_conn);
+  throw 'fatal-229'
+}
+
+
+cms.open_cms(db_conn)
 .then(async (retv) =>{
-  //console.log(Object.keys(retv))
+  console.log(Object.keys(retv))
 //  db = _db;
   package_id = retv.package_id;
   await main();
   cms.close_cms();
 })
 .catch(err=>{
+  console.log(`db_conn:`,db_conn)
   cms.close_cms();
   console.log('fatal err:',err)
   console.trace();
@@ -345,10 +316,12 @@ function dump_auteurs(fn) {
 
 
 async function commit_dirty_auteurs() {
-
+  console.log(`----------------------------------------------------`)
+  console.log(`Entering phase 3: commit_dirty_auteurs #auteurs:${Object.keys(auteurs).length}`)
+  console.log(`----------------------------------------------------`)
   let dirtyCount =0;
   let committedCount =0;
-
+  const force_commit = false;
   for(const ix in auteurs) {
     const auteur = auteurs[ix];
     if (!auteur.dirty) continue;
@@ -373,7 +346,9 @@ async function commit_dirty_auteurs() {
     }
 
     if ((new_revision.checksum == checksum)&&(!force_commit)) {
-      console.log(`NO CHANGE checksum -- committing dirty constructeur <${title}>`)
+      if (verbose) {
+        console.log(`NO CHANGE checksum -- committing dirty auteur <${title}>`)        
+      }
       continue;
     }
 
@@ -392,44 +367,10 @@ async function commit_dirty_auteurs() {
 
 //    console.log(auteurs[ix]); throw 'stop-322'
   }
-  console.log(`Exit commit_dirty_auteurs -- dirty:${dirtyCount} committed:${committedCount})`);
+  console.log(`Exit commit_dirty_auteurs -- total:${dirtyCount} committed:${committedCount}`);
 }
 
 // ---------------------------------------------------------------------------
-
-async function pull_articles_directory() {
-  assert (Object.keys(articles3).length == 0)
-
-  const va = await cms.articles__directory(package_id);
-  va.forEach(o =>{
-    // article directory does not have xid.
-    // FIX:
-    /*
-    if (o.title.startsWith('*')) {
-      o.title = o.data.titres[0];
-      o.dirty = true;
-    }*/
-    _assert (o.item_id, o, `fatal-423. Missing item_id`);
-    _assert (!o.xid, o, `fatal-423. xid present`);
-    if (+o.data.sec ==3) {
-      assert(!articles3[o.name]);
-      articles3[o.name] = o; // full object, ok - just a reference to it.
-    } else {
-      assert(!catalogs[o.name]);
-      catalogs[o.name] = o; // full object, ok - just a reference to it.
-    }
-  })
-  console.log(`Exit pull_articles_directory  articles:${Object.keys(articles3).length} catalogs:${Object.keys(catalogs).length}`);
-}
-
-// ----------------------------------------------------------------------------
-
-/*
-
-    titres[aName] => <directory-infos> // including item_id
-    titres[aName] => <object-from-json3>  // no item-id
-
-*/
 
 async function record_new_titles_into_cms() { // section-3
   for (ix in json3) {
@@ -917,10 +858,11 @@ async function commit_dirty_constructeurs() {
       throw 'stop-808';
     }
 
-    _assert(retv.latest_revision, retv, 'fatal-990 missing latest_revision')
-    constructeurs[name].latest_revision = retv.latest_revision;
+//    _assert(retv.latest_revision, retv, 'fatal-990 missing latest_revision')
+    _assert(retv.revision_id, retv, 'fatal-990 missing revision_id')
+    constructeurs[name].latest_revision = retv.revision_id;
     constructeurs[name].committed = true;
-    console.log(`Committed: constructeur <${title}> latest_revision:${retv.latest_revision}`)
+    console.log(`Committed: constructeur <${title}> latest_revision:${retv.revision_id}`)
 
 //    console.log(`committed retv:`,retv)
 //    console.log(`committed aka:`,data.aka)
@@ -1400,89 +1342,81 @@ function dump_array(a,fn) {
 
 // --------------------------------------------------------------------------
 
-function check_missing_pdf(json, pdf) {
+function check_missing_pdf(json) {
+  _assert(pdf_folder,pdf_folder,'Missing pdf_folder')
+  const pdf = jsonfile.readFileSync('scanp3-pdf/index.json').index;
+  console.log(`scanp3-pdf/index contains ${Object.keys(pdf).length} pdf-files.`)
+
   let missingCount =0;
+  let rsync_missingCount =0;
   for (const ix in json) {
     const it = json[ix];
     if (it.deleted) continue;
 
     it.links.forEach(link =>{
+      /*
+          FIRST: check if the file exists somewhere.
+      */
       if (!pdf[link.fn + '.pdf']) {
         missingCount++;
         console.log(`${missingCount} Missing PDF <${link.fn}> for document xid:${it.xid}`)
       }
+      /*
+          SECOND: check if the file exists in RSYNC folder.
+      */
+      const fn = path.join(pdf_folder, path.basename(link.fn + '.pdf'));
+      if (!fs.existsSync(fn)) {
+        console.log(`pdf-file <${fn}> not found xid:${it.xid}`)
+        rsync_missingCount++;
+      }
     })
   }
+
+  console.log(`check-missing-pdf: missingCount:${missingCount} rsync-missing:${rsync_missingCount}`)
+
+}
+
+
+function check_missing_jpeg(json) {
+  _assert(jpeg_folder, jpeg_folder,'Missing jpeg_folder')
+  const jpeg_index = jsonfile.readFileSync('scanp3-jpeg/index.json').index;
+  console.log(`scanp3-jpeg/index contains ${Object.keys(jpeg_index).length} jpeg-files.`)
+
+  let missingCount =0;
+  let rsync_missingCount =0;
+  for (const ix in json) {
+    const it = json[ix];
+    if (it.deleted) continue;
+    if (it.pic.endsWith(`.missing`)) continue;
+
+    /*
+        FIRST: check if the file exists somewhere.
+    */
+    if (!jpeg_index[it.pic + '.jpg']) {
+      missingCount++;
+      console.log(`${missingCount} Missing JPEG <${it.pic}> for document xid:${it.xid}`)
+    }
+    /*
+        SECOND: check if the file exists in RSYNC folder.
+    */
+    const fn = path.join(jpeg_folder, it.pic + '.jpg');
+    if (!fs.existsSync(fn)) {
+      console.log(`jpeg-file <${fn}> not found xid:${it.xid}`)
+      rsync_missingCount++;
+    }
+  }
+
+  console.log(`check-missing-jpeg: total:${Object.keys(jpeg_index).length} missingCount:${missingCount} rsync-missing:${rsync_missingCount}`)
+
 }
 
 
 // ##########################################################################
 
 async function main() {
-//  console.log(`main ctx:`,Object.keys(ctx))
-//  var {db} = ctx;
-
-
-
-
-
-  if (stop_number <2) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(1.0)-xlsx-original.json`)
-    console.log(`file: upload3-(1.1)-reformatted.json`)
-    console.log(`Next stop is 'pulling all data from DB' => ./upload3.json -n 2`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  const vp = await pull_constructors_directory(package_id); // publishers == constructeurs
-  dump_array(vp, `upload3-(2.1)-constructeurs.yaml`)
 
   await pull_auteurs_directory();
   dump_array(auteurs, `upload3-(2.2)-authors.yaml`)
-
-  await pull_articles_directory();         // all sections. (articles)
-  console.log('dumping articles3.yaml....')
-  dump_array(articles3,'upload3-(2.3)-articles3.yaml')
-  console.log('dumping catalogs.yaml....')
-  dump_array(catalogs,'upload3-(2.4)-catalogs.yaml')
-
-
-  if (stop_number <3) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(2)-constructeurs.json`)
-    console.log(`Next stop is 'Adding constructeurs from xlsx' => ./upload3.json -n 3`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  add_constructeurs_from_xlsx(); // sec1 & sec2
-  dump_array(constructeurs, `upload3-(3)-xlsx-constructeurs.yaml`)
-
-  if (stop_number <4) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(3)-xlsx-constructeurs.yaml`)
-    console.log(`Next stop is 'Commit-dirty-constructeurs (S1,S2)'. (-n 4)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  // add_publishers_from_xlsx(); // sec3
-  const hh4 = await commit_dirty_constructeurs() // ~ publishers ~like auteurs
-  dump_array(hh4, `upload3-(4)-constructeurs-commited.yaml`)
-
-
-  if (stop_number <5) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(5)-authors.yaml`)
-    console.log(`Next stop is 'Adding authors from xlsx cat3'. (-n 6)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
 
   add_auteurs_from_xlsx();
   dump_array(auteurs,'upload3-(5)-xlsx-auteurs.yaml')
@@ -1498,63 +1432,6 @@ async function main() {
 
   await commit_dirty_auteurs()
   dump_array(auteurs,'upload3-(6)-auteurs-committed.yaml')
-
-
-  if (stop_number <7) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(6)-catalogs.yaml`)
-    console.log(`Next stop is 'Adding catalogs from xlsx (S1,S2)'. (-n 7)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  console.log('add catalogs from xlsx....')
-  add_catalogs_from_xlsx();             // from sec1 & sec2 only.
-  dump_array(catalogs,'upload3-(7)-xlsx-catalogs.yaml')
-
-  if (stop_number <8) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(7)-xlsx-catalogs.yaml`)
-    console.log(`Next stop is 'Commit dirty catalogs' (S1,S2). (-n 8)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  await commit_dirty_catalogs();
-  dump_array(catalogs, 'upload3-(8)-catalogs-committed.yaml')
-
-  if (stop_number <9) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(8)-articles-committed.yaml`)
-    console.log(`Next stop is 'Add xlsx-articles3' (S3). (-n 9)`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-
-  add_articles3_from_xlsx();
-  dump_array(articles3,'upload3-(9)-xlsx-articles-S3.yaml')
-
-  if (stop_number <10) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Your stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(9)-xlsx-articles-S3.yaml`)
-    console.log(`Next stop is 'Recording new article (sec3)'. (-n ${stop_number+1})`)
-    println('--------------------------------------------------------------------------')
-    return;
-  }
-
-  await commit_dirty_articles_S3();
-//  dump_array(articles,'upload3-(12)-articles-S3-committed.yaml')
-
-  println('--------------------------------------------------------------------------')
-  console.log(`Your stop-number is ${stop_number}`)
-  console.log(`Everything completed. EXIT.`)
-  println('--------------------------------------------------------------------------')
-
 
   console.log(`Exit main`)
 }
