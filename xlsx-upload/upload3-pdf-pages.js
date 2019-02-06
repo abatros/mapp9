@@ -166,7 +166,6 @@ async function main(db) {
       port:${port}
       database:${database}
       user:${user}
-      password:${password}
       appInstance:'cms-236393'
       `)
   }
@@ -206,15 +205,7 @@ async function main(db) {
       To continue next phase, use option: -p 2
       ------------------------------------------
       `)
-    // process.exit(0)
-  }
-
-  if (argv.phase <3) {
-    console.log(`
-      ------------------------------------------
-       To continue next phase, use option: -p 3
-      ------------------------------------------
-      `)
+     process.exit(0)
   }
 
   const retv2 = await db.query(`
@@ -235,11 +226,11 @@ async function main(db) {
   // ------------------------------------------------------------------------
 
 
-  if (argv.phase <2) {
-    console.log(
-      `----------------------------------------
-       To continue next phase, use option: -p 2
-       ----------------------------------------`)
+  if (argv.phase <3) {
+    console.log(`
+      ----------------------------------------
+      To continue next phase, use option: -p 3
+      ----------------------------------------`)
     process.exit(0)
   }
 
