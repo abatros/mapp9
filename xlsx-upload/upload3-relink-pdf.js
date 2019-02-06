@@ -47,7 +47,7 @@ var yaml_env; // less priority
     yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
     //console.log('env:',yaml_env);
   } catch (err) {
-    console.log(err.message);-
+    console.log(err.message);
     console.log(`
       Fatal error opening env-file <${yaml_env_file}>
       Try again using option -y
@@ -67,7 +67,7 @@ const pdf_folder = argv.pdf_folder || yaml_env.pdf_folder || '/media/dkz/Seagate
 const pdf_search_inputs = yaml_env.pdf_inputs; // ARRAY.
 const jpeg_search_inputs = yaml_env.jpeg_inputs; // ARRAY.
 
-var input_fn = argv._[0] || `./20190128-full.xlsx`;
+var input_fn = argv._[0] || `./20190206-full.xlsx`;
 if (!input_fn) {
     console.log('Syntax: ./upload3-relink-pdf [options] <file-name.xlsx>');
     return;
@@ -301,10 +301,11 @@ async function pull_articles_all() {
   }
 
   let n2 =0;
-  Object.keys(pdf_index).forEach(fn =>{
+  console.log('Warning - pdf-files used in multiples documents')
+  Object.keys(pdf_index).forEach((fn,j) =>{
     if (pdf_index[fn].articles.length>1) {
 //      console.log(`-- ${fn} ${pdf_index[fn].map(o=>`[${o.item_id}]`).join(', ')}`)
-      console.log(`-- ${fn} ${pdf_index[fn].articles.map(o=>`[${o.data.xid}]`).join(', ')}`)
+      console.log(`--${n2} ${fn} ${pdf_index[fn].articles.map(o=>`[${o.data.xid}]`).join(', ')}`)
       n2++;
     }
   })
