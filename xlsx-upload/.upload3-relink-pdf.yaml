@@ -1,0 +1,10 @@
+---
+  host: localhost
+  port: 5432
+  database: cms-oacs
+  user: postgres
+  pg_monitor: false
+  app_instance: 'cms-236393'
+  pdf_inputs:
+    - /media/dkz/Seagate/18.11-Museum-rsync-inhelium
+    
