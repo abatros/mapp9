@@ -18,6 +18,8 @@ const monitor = require('pg-monitor');
 var pdfjsLib = require('pdfjs-dist');
 
 const argv = require('yargs')
+  .usage('./upload3-pdf-pages.js -d /media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www')
+  .help(`extra help`)
   .alias('p','phase')
   .alias('f','file')
   .alias('d','dir')
@@ -26,8 +28,8 @@ const argv = require('yargs')
   .options({
     'commit': {default:true},
     'phase': {default:0},
-    'check_collisions': {default:true},
-    'show_collisions': {default:true, alias:'k'},
+    'stop': {default:true}, // stop when error, if --no-stop, show error.
+    'show-collisions': {default:false, alias:'k'},
   }).argv;
 
 const verbose = argv.verbose;
@@ -195,12 +197,24 @@ async function main(db) {
 
   // ------------------------------------------------------------------------
 
-  if (argv.phase <1) {
-    console.log(
-      `----------------------------------------
-       To continue next phase, use option: -p 2
-       ----------------------------------------`)
-    process.exit(0)
+  if (argv.phase <2) {
+    console.log(`
+      ------------------------------------------
+      - db is open
+      - app-instance found
+      - pdf-root found
+      To continue next phase, use option: -p 2
+      ------------------------------------------
+      `)
+    // process.exit(0)
+  }
+
+  if (argv.phase <3) {
+    console.log(`
+      ------------------------------------------
+       To continue next phase, use option: -p 3
+      ------------------------------------------
+      `)
   }
 
   const retv2 = await db.query(`
@@ -234,6 +248,7 @@ async function main(db) {
   let nfiles =0;
   let committedCount =0;
   const hfn = {}; // to check the collisions.
+  let nCollisions =0;
   /*
       for each file, key is the normalized form.
       Kind of auto-correction.
@@ -245,12 +260,18 @@ async function main(db) {
     const baseName = path.basename(fn);
     const dirname = path.dirname(fn);
 
-    if (argv[`check-collisions`]) {
-      const fkey = nor_au2(baseName);
-      _assert(!hfn[fkey], fkey, `
-        Collision <${baseName}> <${hfn[fkey]}> [${fkey}]
-        To skip this check, use option --no-check-collisions
-        `)
+    const fkey = nor_fn(baseName);
+    if (hfn[fkey]) {
+      if (argv.stop) {
+        console.log(`
+          Collision <${baseName}> <${hfn[fkey]}> [${fkey}]
+          To ignore this error, use option --no-stop
+          `);
+          process.exit(-1)
+      } else {
+        console.log(`--${++nCollisions} Collision <${baseName}> <${hfn[fkey]}> HASH:[${fkey}]`)
+      }
+    } else {
       hfn[fkey] = baseName;
     }
 
@@ -261,6 +282,10 @@ async function main(db) {
       */
       //console.log(`--${nfiles} <${argv.file}> <${baseName}>`)
       if (argv.file != baseName) continue;
+    }
+
+    if (argv.phase <3) {
+      continue;
     }
 
     const doc = await pdfjsLib.getDocument(fn)
@@ -274,7 +299,7 @@ async function main(db) {
       title: baseName,
       item_subtype: 'pdf_file',
       package_id,
-      name: nor_au2(baseName),
+      name: nor_fn(baseName),
       data: {
         dirname, // origin folder - just for infos.
       },
@@ -376,7 +401,7 @@ function _assert(b, o, err_message) {
 }
 
 
-function nor_au2(s) {
+function nor_fn(s) {
   const charCodeZero = "0".charCodeAt(0);
   const charCodeNine = "9".charCodeAt(0);
   function isDigitCode(n) {
@@ -387,6 +412,7 @@ function nor_au2(s) {
   const h = {};
   const v = s && (''+s).toLowerCase()
   .RemoveAccents()
+  .replace(/20[0-9]{6}/,' ') // remove revision date
   .replace(/[\(\)\-\.\']/g,' ')
 //  .replace(/[^a-z]/g,' ')
   .replace(/\s+/g,'') // insenstive to spaces, dots, dashes and ().
@@ -404,9 +430,7 @@ function nor_au2(s) {
     return (h[cc]>1)?`${cc}${h[cc]}`:cc;
   })
 
-//  .filter(it=>(it.length>1));
-
-//  if (v.length>0) return v.join('-');
-//  return '*undefined*'
-  return s2.join('')+tail.join('');
+  const s3 = s2.join('')+tail.join('');
+//  console.log(`nor_fn(${s})=>(${s3})`)
+  return s3
 }
