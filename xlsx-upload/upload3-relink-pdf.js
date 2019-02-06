@@ -204,6 +204,7 @@ if (argv.phase <3) {
 }
 
 check_missing_pdf(json);
+check_missing_jpeg(json);
 
 
 if (argv.phase <4) {
@@ -445,10 +446,13 @@ function check_missing_pdf(json) {
   _assert(pdf_folder,pdf_folder,'Missing pdf_folder')
 //  const pdf = jsonfile.readFileSync('scanp3-pdf/index.json').index;
 
+  const pdf_root = Array.from(pdf_inputs)[0];
+  _assert(pdf_root, pdf_inputs, "Missing pdf-root")
   const pdf = pdf_sindex;
   console.log(`pdf-sindex contains ${Object.keys(pdf).length} pdf-files.`)
 
   let refCount =0;
+  let altCount =0;
   let missingCount =0;
   let rsync_missingCount =0;
   for (const ix in json) {
@@ -463,21 +467,19 @@ function check_missing_pdf(json) {
         missingCount++;
         console.log(`${missingCount} Missing PDF <${link.fn}> for document xid:${it.xid}`)
       } else {
-        refCount ++;
-      }
-
-      /*
-          SECOND: check if the file exists in RSYNC folder.
-      */
-      /*
-      const fn = path.join(pdf_folder, path.basename(link.fn + '.pdf'));
-      if (!fs.existsSync(fn)) {
-        console.log(`pdf-file <${fn}> not found xid:${it.xid}`)
-        rsync_missingCount++;
-      }
-      */
-    })
-  }
+        refCount ++; // this is a CALL: a pdf can be called multiple times.
+        /*
+            SECOND: give an alert if the file is not in the first folder
+        */
+        const fn = path.join(pdf_root, path.basename(link.fn + '.pdf'));
+        if (!fs.existsSync(fn)) {
+          altCount ++;
+          console.log(`--${altCount}::${it.xid} pdf-file <${fn}> not found.`)
+          rsync_missingCount++;
+        }
+      } // found in sindex
+    }) // each pdf
+  } // each xlsx line.
 
   console.log(`check-missing-pdf: missingCount:${missingCount} rsync-missing:${rsync_missingCount} sindex:${Object.keys(pdf).length}`)
   console.log(`check-missing-pdf: refCount:${refCount} pdf-files called from xlsx.`)
@@ -486,10 +488,14 @@ function check_missing_pdf(json) {
 
 
 function check_missing_jpeg(json) {
-  _assert(jpeg_folder, jpeg_folder,'Missing jpeg_folder')
-  const jpeg_index = jsonfile.readFileSync('scanp3-jpeg/index.json').index;
-  console.log(`scanp3-jpeg/index contains ${Object.keys(jpeg_index).length} jpeg-files.`)
 
+  const jpeg_root = Array.from(jpeg_inputs)[0];
+  _assert(jpeg_root, jpeg_inputs, "Missing jpeg-root")
+  const jpeg_index = jpeg_sindex; //jsonfile.readFileSync('scanp3-jpeg/index.json').index;
+  console.log(`jpeg_sindex contains ${Object.keys(jpeg_index).length} jpeg-files.`)
+
+  let refCount =0;
+  let altCount =0;
   let missingCount =0;
   let rsync_missingCount =0;
   for (const ix in json) {
@@ -503,15 +509,28 @@ function check_missing_jpeg(json) {
     if (!jpeg_index[it.pic + '.jpg']) {
       missingCount++;
       console.log(`${missingCount} Missing JPEG <${it.pic}> for document xid:${it.xid}`)
+    } else {
+      refCount ++; // this is a CALL: a pdf can be called multiple times.
+      /*
+          SECOND: give an alert if the file is not in the first folder
+      */
+      const fn = path.join(jpeg_root, path.basename(it.pic + '.jpg'));
+      if (!fs.existsSync(fn)) {
+        altCount ++;
+        console.log(`--${altCount}::${it.xid} jpeg-file <${fn}> not found.`)
+        rsync_missingCount++;
+      }
     }
     /*
         SECOND: check if the file exists in RSYNC folder.
     */
+    /*
     const fn = path.join(jpeg_folder, it.pic + '.jpg');
     if (!fs.existsSync(fn)) {
       console.log(`jpeg-file <${fn}> not found xid:${it.xid}`)
       rsync_missingCount++;
-    }
+    }*/
+
   }
 
   console.log(`check-missing-jpeg: total:${Object.keys(jpeg_index).length} missingCount:${missingCount} rsync-missing:${rsync_missingCount}`)
