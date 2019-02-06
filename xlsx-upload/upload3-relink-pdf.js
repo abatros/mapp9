@@ -33,25 +33,16 @@ const argv = require('yargs')
     'xi_min': {default:1, demand:true},
     'h2': {default:false},
     'force-new-revision': {default:false},
-    'limit':{default:99999}
+    'limit':{default:99999},
+    'phase':{default:0, alias:'q'}
   })
   .argv;
 
 
-const force_new_revision = argv['force-new-revision'];
-const verbose = argv.verbose;
-const pg_monitor = argv['pg-monitor'];
-const stop_number = +(argv['stop-number'] || 1);
-
-function println(x) {console.log(x);}
-/*
-    yaml_env gets db-parameters: host, user, password, port, pakage_id etc...
-*/
-
-var yaml_env;
+var yaml_env; // less priority
 
 ;(()=>{
-  const yaml_env_file = argv['yaml-env'] || './.env.yaml';
+  const yaml_env_file = argv['yaml-env'] || './.upload3-relink-pdf.yaml';
   try {
     yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
     //console.log('env:',yaml_env);
@@ -66,22 +57,19 @@ var yaml_env;
   }
 })();
 
-/*
-    priority on command line
-*/
+function println(x) {console.log(x);}
 
-if (pg_monitor != undefined) yaml_env.pg_monitor = pg_monitor;
-
-//process.exit(-1);
-
-  //let jpeg_folder = argv.jpeg_folder|| './jpeg-1895';
-const jpeg_folder = argv.jpeg_folder|| '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www';
-  //var pdf_folder = argv.pdf_folder || './pdf-1946';
-const pdf_folder = argv.pdf_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www';
+const force_new_revision = argv['force-new-revision'];
+const verbose = argv.verbose;
+const pg_monitor = argv['pg-monitor'] || yaml_env.pg_monitor;
+const jpeg_folder = argv.jpeg_folder|| yaml_env.jpeg_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www';
+const pdf_folder = argv.pdf_folder || yaml_env.pdf_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www';
+const pdf_search_inputs = yaml_env.pdf_inputs; // ARRAY.
+const jpeg_search_inputs = yaml_env.jpeg_inputs; // ARRAY.
 
 var input_fn = argv._[0] || `./20190128-full.xlsx`;
 if (!input_fn) {
-    console.log('Syntax: node xlsx2json [options] <file-name.xlsx>');
+    console.log('Syntax: ./upload3-relink-pdf [options] <file-name.xlsx>');
     return;
 }
 
@@ -168,23 +156,67 @@ jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
 
 
 
-
-console.log("=============================================")
-console.log("PHASE 1 COMPLETE (xlsx is now in json format)")
-console.log("=============================================")
-
-
 // ##########################################################################
 /*
             CHECK PDF AND JPEG
 */
 // ##########################################################################
 
-/*
-      if everything successful.
+const pdf_inputs = new Set();
+if (argv.pdf_dir) pdf_inputs.add(argv.pdf_dir)
+yaml_env.pdf_inputs && yaml_env.pdf_inputs.forEach(i=>{pdf_inputs.add(i)})
+console.log(`pdf-inputs:`, pdf_inputs);
+_assert(pdf_inputs.size>0,pdf_inputs,'Missing pdf-inputs')
+
+
+const jpeg_inputs = new Set();
+if (argv.jpeg_dir) jpeg_inputs.add(argv.pdf_dir)
+yaml_env.jpeg_inputs && yaml_env.jpeg_inputs.forEach(i=>{jpeg_inputs.add(i)})
+console.log(`jpeg-inputs:`,jpeg_inputs);
+//_assert(jpeg_inputs.size>0, jpeg_inputs,'Missing jpeg-inputs')
+
+
+if (argv.phase <2) {
+  console.log(`
+    ---------------------------------------------
+    PHASE 1 COMPLETE (xlsx is now in json format)
+    * next is checking if PDF exists.
+    * a root folder must be given and/or inputs.
+    To continue use option -q2
+    ---------------------------------------------
+    `);
+  process.exit(0);
+}
+
+const pdf_sindex = mk_search_index(pdf_inputs, ['\.pdf$']);
+const jpeg_sindex = mk_search_index(jpeg_inputs, ['\.jpg$']);
+
+if (argv.phase <3) {
+  console.log(`
+    ---------------------------------------------
+    PHASE 2 COMPLETE :
+    * seach indexes are ready.
+    Next is finding pdf in search-index.
+    To continue use option -q3
+    ---------------------------------------------
+    `);
+  process.exit(0);
+}
+
 check_missing_pdf(json);
-check_missing_jpeg(json);
-*/
+
+
+if (argv.phase <4) {
+  console.log(`
+    ---------------------------------------------
+    PHASE 3 COMPLETE :
+    * check report with missing pdf-files.
+    To continue use option -q4
+    ---------------------------------------------
+    `);
+  process.exit(0);
+}
+
 // ##########################################################################
 /*
             FROM HERE WE RUN ASYNC.
@@ -408,11 +440,15 @@ function dump_array(a,fn) {
 
 // --------------------------------------------------------------------------
 
+
 function check_missing_pdf(json) {
   _assert(pdf_folder,pdf_folder,'Missing pdf_folder')
-  const pdf = jsonfile.readFileSync('scanp3-pdf/index.json').index;
-  console.log(`scanp3-pdf/index contains ${Object.keys(pdf).length} pdf-files.`)
+//  const pdf = jsonfile.readFileSync('scanp3-pdf/index.json').index;
 
+  const pdf = pdf_sindex;
+  console.log(`pdf-sindex contains ${Object.keys(pdf).length} pdf-files.`)
+
+  let refCount =0;
   let missingCount =0;
   let rsync_missingCount =0;
   for (const ix in json) {
@@ -426,19 +462,25 @@ function check_missing_pdf(json) {
       if (!pdf[link.fn + '.pdf']) {
         missingCount++;
         console.log(`${missingCount} Missing PDF <${link.fn}> for document xid:${it.xid}`)
+      } else {
+        refCount ++;
       }
+
       /*
           SECOND: check if the file exists in RSYNC folder.
       */
+      /*
       const fn = path.join(pdf_folder, path.basename(link.fn + '.pdf'));
       if (!fs.existsSync(fn)) {
         console.log(`pdf-file <${fn}> not found xid:${it.xid}`)
         rsync_missingCount++;
       }
+      */
     })
   }
 
-  console.log(`check-missing-pdf: missingCount:${missingCount} rsync-missing:${rsync_missingCount}`)
+  console.log(`check-missing-pdf: missingCount:${missingCount} rsync-missing:${rsync_missingCount} sindex:${Object.keys(pdf).length}`)
+  console.log(`check-missing-pdf: refCount:${refCount} pdf-files called from xlsx.`)
 
 }
 
@@ -483,13 +525,14 @@ async function main() {
 //  console.log(`main ctx:`,Object.keys(ctx))
 //  var {db} = ctx;
 
-  if (stop_number <2) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`file: upload3-(1.0)-xlsx-original.json`)
-    console.log(`file: upload3-(1.1)-reformatted.json`)
-    console.log(`Next stop is 'pulling all data from DB' => ./upload3.json -n 2`)
-    println('--------------------------------------------------------------------------')
+  if (argv.phase <5) {
+    println(`
+    --------------------------------------------------------------------------
+    file: upload3-(1.0)-xlsx-original.json
+    file: upload3-(1.1)-reformatted.json
+    Next stop is 'pulling all data from DB' => ./upload3.json -q3
+    --------------------------------------------------------------------------
+    `);
     return;
   }
 
@@ -497,12 +540,11 @@ async function main() {
   console.log('dumping upload3-relink-pdf1.yaml ....')
   dump_array(articles_all,'upload3-relink-pdf1.yaml')
 
-  if (stop_number <3) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(6)-catalogs.yaml`)
-    console.log(`Next stop is 'linking pdf to articles'. (-n 3)`)
-    println('--------------------------------------------------------------------------')
+  if (argv.phase <6) {
+    println(`
+    ------------------------------------------------------
+    ------------------------------------------------------
+    `);
     return;
   }
 
@@ -516,3 +558,115 @@ async function main() {
 
   console.log(`Exit main`)
 }
+
+// ============================================================================
+
+function mk_search_index(inputs, patterns) {
+  const hhd = {}; // directories where files found
+  const index = {}; // for each baseName => list of {fn, fsize, mt}
+  const _index = {};
+
+  if (inputs.length<=0) return [];
+
+  inputs.forEach(absolutePath=>{
+    // validate folder exists.
+    if (!fs.existsSync(absolutePath)) throw `fatal-@538 <${absolutePath}> not found.`
+    if (!fs.statSync(absolutePath).isDirectory()) throw `fatal-@539 <${absolutePath}> not a directory.`
+  });
+
+  let nfiles =0;
+  let total_size =0; // for all files visited (found)
+
+  inputs.forEach(absolutePath=>{
+  for (const fn of walkSync(absolutePath, patterns)) {
+      // do something with it
+      if (argv.phase ==2) {
+        console.info(`${++nfiles} ${fn}`);
+      }
+      const stats = fs.statSync(fn)
+      const base = path.basename(fn)
+      const dirname = path.dirname(fn)
+      total_size += stats.size;
+
+      // frequence
+      hhd[dirname] = hhd[dirname] || 0;
+      hhd[dirname]++;
+
+      const new_data = { // override existing
+        fn,
+        fsize: stats.size,
+        mt: stats.mtime.toString()
+      }
+
+      if (_index[fn]) {
+        _index[fn] = new_data; // override obsolete-one.
+        // is already in index[base].files
+      } else {
+        _index[fn] = new_data; // override obsolete-one.
+        index[base] = index[base] || {files:[]}
+        index[base].files.push(new_data);
+//        total_moved += stats.size;
+      }
+      /*
+          check on fsize.
+          Raise sflag if not all the files have same size.
+          That will prevent any copy or move operation.
+      */
+      index[base].fsize = index[base].fsize || stats.size;
+      if (index[base].fsize != stats.size) {
+        index[base].sflag = true;
+      }
+
+      index[base].mt = index[base].mt || new_data.mt;
+      if (index[base].mt != new_data.mt) {
+        index[base].mtflag = true;
+      }
+
+      index[base].latest_revision = index[base].latest_revision || new_data.mt;
+      if (index[base].latest_revision > new_data.mt) {
+        index[base].latest_revision = new_data.mt;
+      }
+    }
+  })
+  return index;
+} // mk_search_index
+
+// ----------------------------------------------------------------------------
+
+function *walkSync(dir,patterns) {
+  const files = fs.readdirSync(dir, 'utf8');
+//  console.log(`scanning-dir: <${dir}>`)
+  for (const file of files) {
+    try {
+      const pathToFile = path.join(dir, file);
+      if (file.startsWith('.')) continue; // should be an option to --exclude
+        const fstat = fs.statSync(pathToFile);
+      const isSymbolicLink = fs.statSync(pathToFile).isSymbolicLink();
+      if (isSymbolicLink) continue;
+
+      const isDirectory = fs.statSync(pathToFile).isDirectory();
+      if (isDirectory) {
+        if (file.startsWith('.')) continue;
+          yield *walkSync(pathToFile, patterns);
+      } else {
+        if (file.startsWith('.')) continue;
+        let failed = false;
+        for (pat of patterns) { // AND
+          const regex = new RegExp(pat,'gi');
+          if (file.match(regex)) continue;
+          failed = true;
+          break;
+        };
+        if (!failed)
+        yield pathToFile;
+      }
+    }
+    catch(err) {
+      console.log(`ALERT on file:${ path.join(dir, file)} err:`,err)
+//      console.log(`ALERT err:`,err)
+      continue;
+    }
+  }
+} // walkSync (dir,pattern)
+
+// ----------------------------------------------------------------------------
