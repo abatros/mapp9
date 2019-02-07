@@ -35,7 +35,7 @@ function _assert(b, o, err_message) {
 
 exports.open_cms = async (cmd) =>{
 
-  console.log(`exports.open_cms cmd:`,cmd)
+//  console.log(`exports.open_cms cmd:`,cmd)
   assert(cmd.host);
   assert(cmd.database);
   assert(cmd.user);

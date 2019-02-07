@@ -136,7 +136,7 @@ console.log(`-- xlsx-sheet1 nlines: ${json.length}`);
 jsonfile.writeFileSync('upload3-(1.0)-xlsx-original.json',json,{spaces:2})
 
 require('./reformat.js')(json);
-jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
+jsonfile.writeFileSync('upload3-(1.1)-xlsx-reformatted.json',json,{spaces:2})
 //check1()
 
 ;(()=>{
@@ -189,7 +189,10 @@ if (argv.phase <2) {
 }
 
 const pdf_sindex = mk_search_index(pdf_inputs, ['\.pdf$']);
+jsonfile.writeFileSync('upload3-relink-pdf-sindex.json',pdf_sindex,{spaces:2})
+
 const jpeg_sindex = mk_search_index(jpeg_inputs, ['\.jpg$']);
+jsonfile.writeFileSync('upload3-relink-jpeg-sindex.json',jpeg_sindex,{spaces:2})
 
 if (argv.phase <3) {
   console.log(`

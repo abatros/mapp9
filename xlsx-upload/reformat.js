@@ -27,7 +27,7 @@ const iso_cc = {
   SA:'Allemagne (Sarre)'
 };
 
-console.log(`\nCountries Index/frequence`)
+//console.log(`\nCountries Index/frequence`)
 Object.keys(iso_cc).forEach(cc=>{
   iso_cc[iso_cc[cc]] = cc;
 })

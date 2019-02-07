@@ -30,57 +30,48 @@ const argv = require('yargs')
     'score_min': {default:80, demand:true},
     'xi_min': {default:1, demand:true},
     'h2': {default:false},
-    'force-new-revision': {default:false}
+    'force-new-revision': {default:false},
+    'phase': {default:0, alias:'q'}
   })
   .argv;
 
+  var yaml_env;
+
+  ;(()=>{
+    const yaml_env_file = argv['yaml-env'] || './.env.yaml';
+    try {
+      yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
+      //console.log('env:',yaml_env);
+    } catch (err) {
+      console.log(err.message);
+      console.log(`
+        Fatal error opening env-file <${yaml_env_file}>
+        Try again using option -y
+        ex:  -y .env-32024-ultimheat
+        `)
+      process.exit(-1);
+    }
+  })();
 
 
 const force_new_revision = argv['force-new-revision'];
 const verbose = argv.verbose;
-const pg_monitor = argv['pg-monitor'];
-const stop_number = +(argv['stop-number'] || 1);
+const pg_monitor = argv['pg-monitor'] || yaml_env.pg_monitor;
 
 function println(x) {console.log(x);}
-/*
-    yaml_env gets db-parameters: host, user, password, port, pakage_id etc...
-*/
 
-var yaml_env;
 
-;(()=>{
-  const yaml_env_file = argv['yaml-env'] || './.env.yaml';
-  try {
-    yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
-    //console.log('env:',yaml_env);
-  } catch (err) {
-    console.log(err.message);-
-    console.log(`
-      Fatal error opening env-file <${yaml_env_file}>
-      Try again using option -y
-      ex: ./upload3 -y .env-32024-ultimheat
-      `)
-    process.exit(-1);
-  }
-})();
-
-/*
-    priority on command line
-*/
-
-if (pg_monitor != undefined) yaml_env.pg_monitor = pg_monitor;
-
-var input_fn = argv._[0] || `./20190128-full.xlsx`;
-if (!input_fn) {
-    console.log('Syntax: node xlsx2json [options] <file-name.xlsx>');
+var xlsx_fn = argv._[0] || yaml_env.xlsx;
+if (!xlsx_fn) {
+    console.log('Missing xlsx file.');
     return;
 }
 
-if (!fs.existsSync(input_fn)) {
-  console.log(`xlsx file <${input_fn}> does not exist.`);
+if (!fs.existsSync(xlsx_fn)) {
+  console.log(`xlsx file <${xlsx_fn}> does not exist.`);
   process.exit(-1);
 } else {
-  console.log(`processing xlsx file <${input_fn}>`);
+  console.log(`processing xlsx file <${xlsx_fn}>`);
 }
 
 function get_real_path(p) {
@@ -97,9 +88,9 @@ function get_real_path(p) {
 
 // ===========================================================================
 
-var workbook = XLSX.readFile(input_fn, {cellDates:true});
+var workbook = XLSX.readFile(xlsx_fn, {cellDates:true});
 const sheet1 = workbook.SheetNames[0];
-console.log(sheet1)
+// console.log(sheet1)
 
 const results = [];
 var total_entries = 0;
@@ -134,15 +125,18 @@ const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheet1],{
 
 //bi += 1;
 //console.log(' -- New batch: ',bi, ' at: ',new Date()-startTime);
-console.log(`-- xlsx-sheet1 nlines: ${json.length}`);
+console.log(`xlsx-sheet1 nlines: ${json.length}`);
 
+console.log(`writing file "upload3-(1.0)-xlsx-original.json"`)
 jsonfile.writeFileSync('upload3-(1.0)-xlsx-original.json',json,{spaces:2})
 
 require('./reformat.js')(json);
 jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
 //check1()
 
+
 ;(()=>{
+  console.log(`Checking missing titles...`)
   let mCount =0;
   let checked =0;
   for (const ix in json) { // array
@@ -159,10 +153,14 @@ jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
 
 
 
-
-console.log("=============================================")
-console.log("PHASE 1 COMPLETE (xlsx is now in json format)")
-console.log("=============================================")
+if (argv.phase <2) { console.log(`
+  =============================================
+  PHASE 1 COMPLETE (xlsx is now in json format)
+  To continue, use option -q2
+  =============================================
+  `);
+  return;
+}
 
 
 // ##########################################################################
@@ -180,15 +178,6 @@ const auteurs = {};       // hash key: nor_au2(title)
 const articles3 = {};      // xid
 const catalogs = {};      // xid
 
-/*
-cms.open_cms({
-  package_id: process.env.package_id,
-//  package_id: env.,
-  autofix:true,
-  pg_monitor: !!argv['pg-monitor']
-})*/
-
-
 const db_conn = {
   host: argv.host || process.env.PGHOST || yaml_env.host,
   port: argv.port || process.env.PGPORT || yaml_env.port,
@@ -204,11 +193,10 @@ if (!db_conn.password) {
   throw 'fatal-229'
 }
 
-
 cms.open_cms(db_conn)
 .then(async (retv) =>{
-  console.log(Object.keys(retv))
-//  db = _db;
+  //console.log(Object.keys(retv))
+  _assert(retv.db, retv, 'fatal-@199 DB not open');
   package_id = retv.package_id;
   await main();
   cms.close_cms();
@@ -225,6 +213,7 @@ cms.open_cms(db_conn)
 
 async function pull_auteurs_directory() {
   assert (Object.keys(auteurs).length == 0)
+  console.log(`Entering pull_auteurs_directory - actual size: ${Object.keys(auteurs).length}`)
   const va = await cms.authors__directory();
   va.forEach(au =>{
     assert(!auteurs[au.name]);
@@ -347,7 +336,7 @@ async function commit_dirty_auteurs() {
 
     if ((new_revision.checksum == checksum)&&(!force_commit)) {
       if (verbose) {
-        console.log(`NO CHANGE checksum -- committing dirty auteur <${title}>`)        
+        console.log(`NO CHANGE checksum -- committing dirty auteur <${title}>`)
       }
       continue;
     }
@@ -1418,20 +1407,42 @@ async function main() {
   await pull_auteurs_directory();
   dump_array(auteurs, `upload3-(2.2)-authors.yaml`)
 
-  add_auteurs_from_xlsx();
-  dump_array(auteurs,'upload3-(5)-xlsx-auteurs.yaml')
-
-  if (stop_number <6) {
-    println('--------------------------------------------------------------------------')
-    console.log(`Stop-number is ${stop_number}`)
-    console.log(`check file: upload3-(6)-xlsx-auteurs.yaml`)
-    console.log(`Next stop is 'Commit dirty authors (S3)'. (-n 7)`)
-    println('--------------------------------------------------------------------------')
+  if (argv.phase <3) {console.log(`
+    --------------------------------------------------------------------------
+    pull_auteurs_directory => "upload3-(2.2)-auteurs.yaml"
+    Next is add auteurs from xlsx, compare w/existing db. Mark dirty.
+    To continue, use option -q3
+    --------------------------------------------------------------------------
+    `)
     return;
   }
 
+
+  add_auteurs_from_xlsx();
+  dump_array(auteurs,'upload3-(5)-xlsx-auteurs.yaml')
+
+  if (argv.phase <4) {console.log(`
+    --------------------------------------------------------------------------
+    merged auteurs directory => "upload3-(5)-xlsx-auteurs.yaml"
+    Next is to commit dirty auteurs.
+    To continue, use option -q4
+    --------------------------------------------------------------------------
+    `)
+    return;
+  }
+
+
   await commit_dirty_auteurs()
   dump_array(auteurs,'upload3-(6)-auteurs-committed.yaml')
+
+  if (argv.phase <5) {console.log(`
+    --------------------------------------------------------------------------
+    Dirty auteurs were committed.
+    Everything completed.
+    --------------------------------------------------------------------------
+    `)
+  }
+
 
   console.log(`Exit main`)
 }

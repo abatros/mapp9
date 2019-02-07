@@ -1,14 +1,5 @@
 #!/usr/bin/env node
 
-/*
-(()=>{
-  const retv = require('dotenv').config()
-  if (retv.error) {
-    throw retv.error;
-  }
-})();
-*/
-
 var XLSX = require('xlsx'); // npm install xlsx
 var jsonfile = require('jsonfile');
 var fs = require('fs');
@@ -40,64 +31,47 @@ const argv = require('yargs')
     'score_min': {default:80, demand:true},
     'xi_min': {default:1, demand:true},
     'h2': {default:false},
-    'force-new-revision': {default:false}
+    'force-new-revision': {default:false},
+    'phase': {default:0, alias:'q'}
   })
   .argv;
 
 
+  var yaml_env;
+
+  ;(()=>{
+    const yaml_env_file = argv['yaml-env'] || './.env.yaml';
+    try {
+      yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
+      //console.log('env:',yaml_env);
+    } catch (err) {
+      console.log(err.message);-
+      console.log(`
+        Fatal error opening env-file <${yaml_env_file}>
+        Try again using option -y
+        ex: ./upload3 -y .env-32024-ultimheat
+        `)
+      process.exit(-1);
+    }
+  })();
 
 const force_new_revision = argv['force-new-revision'];
 const verbose = argv.verbose;
-const pg_monitor = argv['pg-monitor'];
-const stop_number = +(argv['stop-number'] || 1);
+const pg_monitor = argv['pg-monitor'] || yaml_env.pg_monitor;
 
 function println(x) {console.log(x);}
-/*
-    yaml_env gets db-parameters: host, user, password, port, pakage_id etc...
-*/
 
-var yaml_env;
-
-;(()=>{
-  const yaml_env_file = argv['yaml-env'] || './.env.yaml';
-  try {
-    yaml_env = yaml.safeLoad(fs.readFileSync(yaml_env_file, 'utf8'));
-    //console.log('env:',yaml_env);
-  } catch (err) {
-    console.log(err.message);-
-    console.log(`
-      Fatal error opening env-file <${yaml_env_file}>
-      Try again using option -y
-      ex: ./upload3 -y .env-32024-ultimheat
-      `)
-    process.exit(-1);
-  }
-})();
-
-/*
-    priority on command line
-*/
-
-if (pg_monitor != undefined) yaml_env.pg_monitor = pg_monitor;
-
-//process.exit(-1);
-
-  //let jpeg_folder = argv.jpeg_folder|| './jpeg-1895';
-const jpeg_folder = argv.jpeg_folder|| '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/jpeg-www';
-  //var pdf_folder = argv.pdf_folder || './pdf-1946';
-const pdf_folder = argv.pdf_folder || '/media/dkz/Seagate/18.11-Museum-rsync-inhelium/pdf-www';
-
-var input_fn = argv._[0] || `./20190128-full.xlsx`;
-if (!input_fn) {
-    console.log('Syntax: node xlsx2json [options] <file-name.xlsx>');
+var xlsx_fn = argv._[0] || yaml_env.xlsx;
+if (!xlsx_fn) {
+    console.log('Missing xlsx file.');
     return;
 }
 
-if (!fs.existsSync(input_fn)) {
-  console.log(`xlsx file <${input_fn}> does not exist.`);
+if (!fs.existsSync(xlsx_fn)) {
+  console.log(`xlsx file <${xlsx_fn}> does not exist.`);
   process.exit(-1);
 } else {
-  console.log(`processing xlsx file <${input_fn}>`);
+  console.log(`processing xlsx file <${xlsx_fn}>`);
 }
 
 function get_real_path(p) {
@@ -114,9 +88,8 @@ function get_real_path(p) {
 
 // ===========================================================================
 
-var workbook = XLSX.readFile(input_fn, {cellDates:true});
+var workbook = XLSX.readFile(xlsx_fn, {cellDates:true});
 const sheet1 = workbook.SheetNames[0];
-console.log(sheet1)
 
 const results = [];
 var total_entries = 0;
@@ -151,8 +124,9 @@ const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheet1],{
 
 //bi += 1;
 //console.log(' -- New batch: ',bi, ' at: ',new Date()-startTime);
-console.log(`-- xlsx-sheet1 nlines: ${json.length}`);
+console.log(`xlsx-sheet1 nlines: ${json.length}`);
 
+console.log(`writing file "upload3-(1.0)-xlsx-original.json"`)
 jsonfile.writeFileSync('upload3-(1.0)-xlsx-original.json',json,{spaces:2})
 
 require('./reformat.js')(json);
@@ -172,15 +146,18 @@ jsonfile.writeFileSync('upload3-(1.1)-reformatted.json',json,{spaces:2})
     }
   }
   assert(mCount ==0, 'fatal-187 MISSING TITRES.')
+  console.log(`Checking missing titles - done.`)
 })()
 
 
-
-
-console.log("=============================================")
-console.log("PHASE 1 COMPLETE (xlsx is now in json format)")
-console.log("=============================================")
-
+if (argv.phase <2) { console.log(`
+  =============================================
+  PHASE 1 COMPLETE (xlsx is now in json format)
+  To continue, use option -q2
+  =============================================
+  `);
+  return;
+}
 
 // ##########################################################################
 /*
@@ -224,7 +201,7 @@ if (!db_conn.password) {
 
 cms.open_cms(db_conn)
 .then(async (retv) =>{
-  console.log(Object.keys(retv))
+  //console.log(Object.keys(retv))
 //  db = _db;
   package_id = retv.package_id;
   await main();
@@ -382,25 +359,67 @@ async function pull_constructors_directory(package_id) {
 /*
 
     Constructeurs (S1,S2) are found in isoc reformatted as an array (indexNames)
-    They are acronyms aka indexNames.
+    indexNames[0] is used to register (key) the constructeur.
+    indexNames are used when buiding the indexes.
+    h1 is the prettyName
 
-    (1) hh contains new constructeurs defined in xlsx. (h1: legalName)
-    (2) aggregate acronyms (aka), and set legalName.
-    (3) sort and create array of new constructeurs to save as json/yaml files.
-    (4) hh does not contains aka (acronyms, indexName)
+    (1) hh contains new constructeurs defined in xlsx. (indexName[0])
+    (2) cr_item.name  and cr_revision.title are from indexName[0].
+    (2) sort and create array of new constructeurs to save as json/yaml files.
 */
 
 function add_constructeurs_from_xlsx() {
+  let new_aka =0;
+  for (const ix in json) {
+    const it = json[ix];
+    if (it.deleted) continue;
+    if (it.sec ==3) continue;
 
-  //const hh = {}; // key is utils.nor_au2(sname)
+    _assert(Array.isArray(it.indexNames) && (it.indexNames.length>0), it, 'fatal-781 indexNames is not an Array')
+
+    const title = it.indexNames[0]; // first indexName[0] is also the construteur.title.
+    const name = utils.nor_au2(it.indexNames[0]); // unique key while waiting for item_id.
+
+    constructeurs[name] = constructeurs[name] || {
+      name,
+      title,
+      data: {name,title},
+      aka: new Set(), // other names for this constructeur.
+      xi: new Set(),
+      dirty: true
+    };
+    const p = constructeurs[name];
+
+    /*
+        Add all indexName - included [0], we will remove later in a final pass.
+    */
+    it.indexNames.forEach(iName =>{
+      if (!p.aka.has(iName)) {
+        if (iName != title) {
+          p.aka.add(iName);
+          p.dirty =true;
+          new_aka++;
+          console.log(`--${new_aka}/${ix} Adding <${iName}> for <${title}>`)                  
+        }
+      }
+    })
+  } // each line xlsx.
 
   /*
-      Constructeur name is found in catalog.indexNames[0] => constructeur.title
-
-      (1) Create new entries.
-      for each article (S1,S2), pull the constructor's legalName (title) from indexNames[0]
-      - register in hh, add the aka.
+          Finale - Cleaning.
   */
+
+  Object.keys(constructeurs).forEach(p =>{
+    if (p.aka) {
+      p.aka.delete(p.title);
+      p.data.aka = Array.from(p.aka); p.aka = 'dkz:undefined';
+    }
+  })
+
+} // add_constructeurs_from_xlsx
+
+
+function add_constructeurs_from_xlsx_Obsolete() {
 
   for (const ix in json) {
     const it = json[ix];
@@ -408,32 +427,34 @@ function add_constructeurs_from_xlsx() {
     if (it.sec ==3) continue;
 
     _assert(Array.isArray(it.indexNames) && (it.indexNames.length>0), it, 'fatal-781 indexNames is not an Array')
-//    const title = it.h1; // NOT CONSISTENT
+
+    const title = it.indexNames[0]; // first indexName[0] is also the construteur.title.
     const name = utils.nor_au2(it.indexNames[0]); // unique key while waiting for item_id.
 
     _assert(it.h1, it, `fatal-804 NO DATA.H1`) // this is document.title not construteur.title
-    const title = it.h1; // first indexName[0] is also the construteur.title.
     /*
-        h1 is the constructeur.title legalName (S1,S2)
+        h1 is the constructeur prettyName (also legalName)
         but name,title are built from indexNames[0]
-        IF different from what is in the DB => push in aka.
     */
+
     constructeurs[name] = constructeurs[name] || {
       name,
       title,
       data: {name,title},
+      aka: new Set(), // other names for this constructeur.
       xi: new Set(),
-      aka: new Set(),
       dirty: true
     };
     const p = constructeurs[name];
 
     /*
-          ###################################################
-          IF this.title is different from actual.title in db,
-          PUSH this new title as aka.
-          ###################################################
+      ####################################################################
+      Several catalogs, can have the same indexName[0]
+      and another set of indexNames[i].
+      We collect those other indexNames, along with those already in db.
+      ####################################################################
     */
+
     // next line is for already commited constructeurs.
     if (p.title != title) {
       p.aka = p.aka || new Set();
@@ -451,8 +472,8 @@ function add_constructeurs_from_xlsx() {
 
 
   console.log(`add_constructeurs_from_xlsx constructeurs:${Object.keys(constructeurs).length}`);
-  /*
 
+  /*
       Here, for each constructeur.title we have a new set of catalogs (xi)
       and a new set of aka (alias) acronyms. (!= indexNames entries.)
       if constructeur already exists => MERGE.
@@ -622,14 +643,35 @@ function dump_array(a,fn) {
 // ##########################################################################
 
 async function main() {
-//  console.log(`main ctx:`,Object.keys(ctx))
-//  var {db} = ctx;
 
   const vp = await pull_constructors_directory(package_id); // publishers == constructeurs
   dump_array(vp, `upload3-(2.1)-constructeurs.yaml`)
 
+  if (argv.phase <3) {console.log(`
+    --------------------------------------------------------------------------
+    pull_constructeurs_directory => "upload3-(2.1)-constructeurs.yaml"
+    Next is to add constructeurs from xlsx, compare - mark dirty.
+    To continue, use option -q3
+    --------------------------------------------------------------------------
+    `)
+    return;
+  }
+
+
+
   add_constructeurs_from_xlsx(); // sec1 & sec2
   dump_array(constructeurs, `upload3-(3)-xlsx-constructeurs.yaml`)
+
+  if (argv.phase <4) {console.log(`
+    --------------------------------------------------------------------------
+    merged construteurs directory => "upload3-(3)-xlsx-constructeurs.yaml"
+    Next is to commit dirty constructeurs.
+    To continue, use option -q4
+    --------------------------------------------------------------------------
+    `)
+    return;
+  }
+
 
   const hh4 = await commit_dirty_constructeurs() // ~ publishers ~like auteurs
   dump_array(hh4, `upload3-(4)-constructeurs-commited.yaml`)
