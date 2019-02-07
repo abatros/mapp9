@@ -191,8 +191,10 @@ if (argv.phase <2) {
 const pdf_sindex = mk_search_index(pdf_inputs, ['\.pdf$']);
 jsonfile.writeFileSync('upload3-relink-pdf-sindex.json',pdf_sindex,{spaces:2})
 
+/*
 const jpeg_sindex = mk_search_index(jpeg_inputs, ['\.jpg$']);
 jsonfile.writeFileSync('upload3-relink-jpeg-sindex.json',jpeg_sindex,{spaces:2})
+*/
 
 if (argv.phase <3) {
   console.log(`
