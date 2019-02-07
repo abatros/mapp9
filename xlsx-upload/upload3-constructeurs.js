@@ -399,7 +399,7 @@ function add_constructeurs_from_xlsx() {
           p.aka.add(iName);
           p.dirty =true;
           new_aka++;
-          console.log(`--${new_aka}/${ix} Adding <${iName}> for <${title}>`)                  
+          console.log(`--${new_aka}/${ix} Adding <${iName}> for <${title}>`)
         }
       }
     })
@@ -644,7 +644,9 @@ function dump_array(a,fn) {
 
 async function main() {
 
+  console.log(`pull_constructors_directory ...`)
   const vp = await pull_constructors_directory(package_id); // publishers == constructeurs
+  console.log(`pull_constructors_directory => ${vp.length} constructeurs`)
   dump_array(vp, `upload3-(2.1)-constructeurs.yaml`)
 
   if (argv.phase <3) {console.log(`
