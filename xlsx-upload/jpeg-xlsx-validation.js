@@ -321,12 +321,26 @@ function check_missing_jpeg(json) {
 
 // ============================================================================
 
+/*
+      detecter Windows collisions sur noms de fichier:
+      When a baseName is registered,
+      a variation in case cannot be accepted.
+      hbasename used for that:
+      hbase[toLowerCase] => exact spell of the file.
+      hbase[edf]=>'EDF'
+*/
+
 function mk_search_index(inputs, patterns) {
   const hhd = {}; // directories where files found
-  const index = {}; // for each baseName => list of {fn, fsize, mt}
-  const _index = {};
+  const _index = {};  // key is fn (full name)
+  const index = {};   // key is baseName => list of {fn, fsize, mt}
+  const hbase = {}; // Windows lower/uppercase
 
   if (inputs.length<=0) return [];
+
+  /*
+      check each input exists
+  */
 
   inputs.forEach(absolutePath=>{
     // validate folder exists.
@@ -347,6 +361,17 @@ function mk_search_index(inputs, patterns) {
       const base = path.basename(fn)
       const dirname = path.dirname(fn)
       total_size += stats.size;
+
+      /*
+          FIRST: check unique baseName in lowercase
+      */
+
+      const _baseName = base.toLowerCase();
+      hbase[_baseName] = hbase[_baseName] || base;
+      if (hbase[_baseName] != base) {
+        console.log(`ALERT <${hbase[_baseName]}> <${base}>`)
+        //throw 'fatal-@373'
+      }
 
       // frequence
       hhd[dirname] = hhd[dirname] || 0;

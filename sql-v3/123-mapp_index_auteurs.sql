@@ -72,7 +72,7 @@ for (const j in titres) {
 	    yp,
 //	    name,
 	    links,
-	  title: titre.titles[0],
+	  title: titre.titles && titre.titles[0],
 	    transcription,
 	    restricted
 	  })
@@ -91,4 +91,4 @@ return alist;
 $$ language plv8;
 
 select * from mapp.index_auteurs('{"all_packages":true}') order by name limit 100;
-select * from mapp.index_auteurs('{"package_id":236393}'::jsonb) order by name limit 100;
+select * from mapp.index_auteurs('{"package_id":236393}'::jsonb) order by name --limit 100;
